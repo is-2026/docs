@@ -299,7 +299,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Jugador'
         '400':
-          description: La suma de los PACSS no es 300, o alguno está fuera de rango (20-100)
+          description: El número de camiseta de jugdor está fuera de rango (1-99), la suma de los PACSS no es 300, o alguno está fuera de rango (20-100)
           content:
             application/json:
               schema:

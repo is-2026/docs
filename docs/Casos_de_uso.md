@@ -76,10 +76,8 @@
   3. El usuario ingresa los datos solicitados y confirma la operación.
   4. El sistema valida los datos e inicia la sesión.
 - **Escenarios excepcionales:**
-  4. a) El email ingresado es incorrecto.
-  - El sistema informa al usuario que el email proporcionado es incorrecto.
-  4. b) La contraseña ingresada es incorrecta.
-  - El sistema informa al usuario que la contraseña proporcionada es incorrecta.
+  4. a) El campo email o contraseña ingresado es incorrecto.
+  - El sistema informa al usuario que el email o la contraseña proporcionada es incorrecto.
 
 ### Caso de Uso 3: Cerrar sesión
 - **Actor primario:** Usuario
