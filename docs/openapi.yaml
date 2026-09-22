@@ -1402,9 +1402,7 @@ components:
         codigo:
           type: string
           description: |
-              Código del comportamiento en Python. Se debe verificar. Primitivas válidas: 
-              Entorno: my_pos(), ball_pos(), has_ball(), team_pos(), enemy_pos(),score(),time(),total_time()
-              Acciones: move(x,y), pass(jugador_id), shoot(), tackle(), carryball(x,y)
+              Código del comportamiento en Python. Se debe verificar. Ver las primitivas válidas en la especificación de la API de comportamientos
 
     Comportamiento:
       type: object
