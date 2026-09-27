@@ -73,6 +73,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           description: Email o contraseña incorrectos
           content:
@@ -1198,10 +1200,8 @@ components:
     # -- Autenticación / Usuario ---
     UsuarioRegistroInput:
       type: object
-      required: [username, email, password]
+      required: [email, password]
       properties:
-        username:
-          type: string
         email:
           type: string
           format: email
@@ -1245,8 +1245,6 @@ components:
     #     id:
     #       type: string
     #       format: uuid
-    #     username:
-    #       type: string
     #     email:
     #       type: string
     #     password:
