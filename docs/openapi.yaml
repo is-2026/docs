@@ -138,6 +138,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Club'
+        '400':
+          description: Falta alguno de los dos campos o las entradas son inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '409':  
@@ -365,42 +371,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'  
 
-  /club/jugadores/{jugador_id}/comportamiento:
-    parameters:
-      - name: jugador_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    patch:
-      tags: [Jugadores]
-      summary: Asignar/reasignar comportamiento por defecto a un jugador
-      operationId: asignar_comportamiento_jugador
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AsignarComportamientoInput'
-      responses:
-        '200':
-          description: Comportamiento asignado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Jugador'
-        '400':
-          description: El comportamiento indicado no existe o no pertenece al club
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
 
 # ----------------------------------------------------------------------------- 
 # Comportamiento
@@ -551,7 +521,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Liga'
         '400':
-          description: min_clubes es menor a 3, o max_clubes excede el límite del sistema
+          description: max_clubes excede el límite del sistema o no se enviaron enviaron exactamente 3 titulares (con sus comportamientos) y 3 suplentes en jugadores
           content:
             application/json:
               schema:
@@ -571,7 +541,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Liga'
+                  $ref: '#/components/schemas/LigaDetalle'
         '401':
           $ref: '#/components/responses/Unauthorized'
   
@@ -589,7 +559,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Liga'
+                  $ref: '#/components/schemas/LigaResumen'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -611,7 +581,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Liga'
+                $ref: '#/components/schemas/LigaDetalle'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -716,7 +686,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Liga'
+                $ref: '#/components/schemas/LigaDetalle'
         '400':
           description: No hay suficientes clubes inscriptos para iniciar la liga
           content:
@@ -1378,17 +1348,6 @@ components:
           type: integer
         strength:
           type: integer
-        comportamiento_default:
-          type: string
-          format: uuid
-    
-    AsignarComportamientoInput:
-      type: object
-      required: [comportamiento_id]
-      properties:
-        comportamiento_id:
-          type: string
-          format: uuid
     
     # --- Comportamientos ---
     CrearComportamientoInput:
@@ -1416,21 +1375,46 @@ components:
     # --- Ligas ---
     CrearLigaInput:
       type: object
-      required: [nombre, min_clubes, max_clubes, duracion_partido_minutos]
+      required: [nombre, max_clubes, duracion_partido_minutos, jugadores]
       properties:
         nombre:
           type: string
         password:
           type: [string, "null"]
-        min_clubes:
-          type: integer
-          minimum: 3
         max_clubes:
           type: integer
+          minimum: 3
+          maximum: 30
         duracion_partido_minutos:
           type: integer
+        jugadores:
+          type: array
+          minItems: 6
+          maxItems: 6
+          description: Exactamente 3 con es_titular en true y 3 en false.
+          items:
+            $ref: '#/components/schemas/ConvocadoInput'
     
-    Liga:
+    LigaResumen:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        es_privada:
+          type: boolean
+        max_clubes:
+          type: integer
+        estado:
+          type: string
+          enum: [no_iniciada, iniciada, finalizada]
+        cantidad_clubes:
+          type: integer
+          description: Cantidad de clubes actualmente inscriptos.
+
+    LigaDetalle:
       type: object
       properties: 
         id:
@@ -1441,23 +1425,37 @@ components:
         es_privada:
           type: boolean
           description: derivado de si la liga tiene password
-        min_clubes:
-          type: integer
         max_clubes:
           type: integer
         estado:
           type: string
           enum: [no_iniciada, iniciada, finalizada]
+        clubes_inscriptos:
+          type: array
+          description: Clubes actualmente inscriptos en la liga.
+          items:
+            type: object
+            properties:
+              club_id:
+                type: string
+                format: uuid
+              nombre_club:
+                type: string
     
     ConvocadoInput:
       type: object
-      required: [jugador_id, es_titular_default]
-      properties: 
+      required: [jugador_id, es_titular]
+      properties:
         jugador_id:
           type: string
           format: uuid
-        es_titular_default:
+        es_titular:
           type: boolean
+          description: true si arranca jugando; false si queda en el banco.
+        comportamiento_id:
+          type: [string, "null"]
+          format: uuid
+          description: Comportamiento que usará el jugador durante el partido. Obligatorio si es_titular es true. Para suplentes, se define recién al sustituirlos (ver comportamiento_sustitucion en POST /partidos/{partido_id}/sustituciones); hasta entonces puede ser null.
 
     CrearInscripcionInput:
       type: object
@@ -1469,7 +1467,7 @@ components:
           type: array
           minItems: 6
           maxItems: 6
-          description: Exactamente 3 con es_titular_default en true y 3 en false.
+          description: Exactamente 3 con es_titular en true y 3 en false.
           items:
             $ref: '#/components/schemas/ConvocadoInput'
 
@@ -1508,6 +1506,7 @@ components:
           type: array
           minItems: 6
           maxItems: 6
+          description: Exactamente 3 con es_titular en true y 3 en false.
           items:
             $ref: '#/components/schemas/ConvocadoInput'
 
