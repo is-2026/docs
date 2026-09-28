@@ -1,14 +1,14 @@
-openapi: 3.2.0
+openapi: 3.1.0
 info:
   title: FutBot API
   version: 1.0.0
   description: API REST para la plataforma FutBot:\ Gestion de usuarios, jugadores, partidos, ligas, comportamientos en Python y datos del ranking
 servers:
-  - url: https://localhost:5000
+  - url: https://localhost:8000
     description: Entorno de desarrollo local
 
 tags:
-  - name: Autenticación
+  - name: Autenticacion
   - name: Usuario
   - name: Club
   - name: Jugadores
@@ -27,7 +27,7 @@ paths:
   # ---------------------------------------------------------------------------
   /auth/registro:
     post:
-      tags: [Autenticación]
+      tags: [Autenticacion]
       summary: Registrar Usuario
       description: Crea la cuenta de usuario. El club se crea en un paso separado (POST /club) inmediatamente después, dentro del mismo flujo de onboarding del cliente.
       operationId: registrar_usuario
@@ -56,7 +56,7 @@ paths:
 
   /auth/login:
     post:
-      tags: [Autenticación]
+      tags: [Autenticacion]
       summary: Iniciar sesion
       operationId: iniciar_sesion
       security: []
@@ -84,7 +84,7 @@ paths:
     
   /auth/logout:
     post:
-      tags: [Autenticación]
+      tags: [Autenticacion]
       summary: Cerrar sesión
       operationId: cerrar_sesion
       responses:
@@ -787,146 +787,42 @@ paths:
 # -----------------------------------------------------------------------------
 # Amistosos
 # -----------------------------------------------------------------------------
-  /amistosos/desafios:
-    post:
-      tags: [Amistosos]
-      summary: Enviar desafío amistoso
-      description: Incluye el pool de 6 convocados del club retador.
-      operationId: enviar_desafio
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CrearDesafioInput'
-      responses:
-        '201':
-          description: Desafío creado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Desafio'
-        '400':
-          description: No se enviaron exactamente 3 titulares y 3 suplentes
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          description: El club rival indicado no existe
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+  /amistosos:
     get:
       tags: [Amistosos]
-      summary: Listar desafíos propios
-      operationId: listar_desafios
-      parameters:
-        - name: direccion
-          in: query
-          description: Filtra por desafíos enviados o recibidos por el club
-          schema:
-            type: string
-            enum: [enviados, recibidos]
+      summary: Listar amistosos
+      description: Devuelve una lista de amistosos que están esperando rival, incluyendo públicos y privados.
+      operationId: listar_amistosos
       responses:
         '200':
-          description: Desafíos del club
+          description: Lista de amistosos disponibles
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Desafio'
+                  $ref: '#/components/schemas/Amistoso'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
-  /amistosos/desafios/{desafio_id}:
-    parameters:
-    - name: desafio_id
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-    delete:
-      tags: [Amistosos]
-      summary: Cancelar desafío enviado
-      description: Solo el club retador puede cancelarlo, y solo si sigue pendiente.
-      operationId: cancelar_desafio
-      responses:
-        '200':
-          description: Desafío cancelado
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: El desafío ya fue respondido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    patch:
-      tags: [Amistosos]
-      summary: Responder desafío amistoso
-      description: Si se acepta, se debe incluir el pool de 6 convocados del club desafiado, y se crea el partido.
-      operationId: responder_desafio
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DesafioRespuestaInput'
-      responses:
-        '200':
-          description: Desafío respondido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Desafio'
-        '400':
-          description: No se enviaron exactamente 3 titulares y 3 suplentes
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: El desafío ya no está disponible
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /amistosos/busqueda:
+    
     post:
       tags: [Amistosos]
-      summary: Iniciar búsqueda de rival (matchmaking público)
-      description: Devuelve el ticket nomás. La notificación de emparejamiento exitoso se recibe de forma asíncrona vía WebSocket en el canal `/ws/amistosos/busqueda` (ver especificación AsyncAPI, mensaje 'PartidoEncontrado').
-      operationId: iniciar_matchmaking
+      summary: Crear amistoso
+      description: Crea un amistoso esperando por un rival. Si se envía password, el amistoso se marca como privado.
+      operationId: crear_amistoso
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CrearBusquedaInput'
+              $ref: '#/components/schemas/CrearAmistosoInput'
       responses:
-        '202':
-          description: Búsqueda iniciada
+        '201':
+          description: Amistoso creado
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Busqueda'
+                $ref: '#/components/schemas/Amistoso'
         '400':
           description: No se enviaron exactamente 3 titulares y 3 suplentes
           content:
@@ -935,23 +831,74 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '409':
-          description: El usuario ya está buscando partido
+
+  /amistosos/{amistoso_id}/unirse:
+    parameters:
+      - name: amistoso_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Amistosos]
+      summary: Unirse a un amistoso
+      description: Se une a un amistoso creado por otro club. Si es privado, requiere la contraseña. Al unirse exitosamente, se genera el partido.
+      operationId: unirse_amistoso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnirseAmistosoInput'
+      responses:
+        '200':
+          description: Unido al amistoso exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Amistoso'
+        '400':
+          description: Contraseña incorrecta o no se enviaron exactamente 3 titulares y 3 suplentes
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-    delete:
-      tags: [Amistosos]
-      summary: Cancelar búsqueda de rival
-      operationId: cancelar_matchmaking
-      responses:
-        '200':
-          description: Búsqueda cancelada
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: No hay ninguna búsqueda activa para cancelar
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: El amistoso ya no está disponible (ya tiene rival o fue cancelado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /amistosos/{amistoso_id}:
+    parameters:
+      - name: amistoso_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [Amistosos]
+      summary: Cancelar amistoso
+      description: Solo el club creador puede cancelarlo, y solo si aún no se ha unido ningún rival.
+      operationId: cancelar_amistoso
+      responses:
+        '200':
+          description: Amistoso cancelado
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: El amistoso ya tiene un rival y no puede ser cancelado
           content:
             application/json:
               schema:
@@ -961,6 +908,31 @@ paths:
 # -----------------------------------------------------------------------------
 # Partidos
 # -----------------------------------------------------------------------------
+  /partidos/{partido_id}:
+    parameters:
+      - name: partido_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Partido]
+      summary: Obtener detalle de un partido
+      description: Devuelve la información actualizada de un partido específico, incluyendo su estado y resultado actual.
+      operationId: obtener_partido
+      responses:
+        '200':
+          description: Detalle del partido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Partido'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /partidos/{partido_id}/alineacion:
     parameters:
       - name: partido_id
@@ -1502,13 +1474,28 @@ components:
           type: integer
       
     # --- Amistosos ---
-    CrearDesafioInput:
+    CrearAmistosoInput:
       type: object
-      required: [club_rival_id, jugadores]
+      required: [jugadores]
       properties:
-        club_rival_id:
+        password:
           type: string
-          format: uuid
+          description: Si se provee, el amistoso será privado.
+        jugadores:
+          type: array
+          minItems: 6
+          maxItems: 6
+          description: Exactamente 3 con es_titular en true y 3 en false.
+          items:
+            $ref: '#/components/schemas/ConvocadoInput'
+            
+    UnirseAmistosoInput:
+      type: object
+      required: [jugadores]
+      properties:
+        password:
+          type: string
+          description: Requerido si el amistoso es privado.
         jugadores:
           type: array
           minItems: 6
@@ -1517,74 +1504,23 @@ components:
           items:
             $ref: '#/components/schemas/ConvocadoInput'
 
-    DesafioRespuestaInput:
-      type: object
-      required: [estado]
-      properties:
-        estado:
-          type: string
-          enum: [aceptado, rechazado]
-        jugadores:
-          type: array
-          minItems: 6
-          maxItems: 6
-          description: Requerido si estado es "aceptado".
-          items:
-            $ref: '#/components/schemas/ConvocadoInput'
-    
-    Desafio:
+    Amistoso:
       type: object
       properties:
         id:
           type: string
           format: uuid
-        club_retador_id:
+        club_creador_id:
           type: string
           format: uuid
-        club_desafiado_id:
-          type: string
-          format: uuid
-        direccion:
-          type: string
-          enum: [enviado, recibido]
-          description: Relativo al club autenticado. Derivado de si club_retador_id o club_desafiado_id coincide con el club del usuario
-        estado:
-          type: string
-          enum: [pendiente, aceptado, rechazado, cancelado]
-        partido_id:
+        club_rival_id:
           type: [string, "null"]
           format: uuid
-        fecha_creacion:
-          type: string
-          format: date-time
-    
-    CrearBusquedaInput:
-      type: object
-      required: [jugadores]
-      properties:
-        jugadores:
-          type: array
-          minItems: 6
-          maxItems: 6
-          items:
-            $ref: '#/components/schemas/ConvocadoInput'
-    
-    Busqueda:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        club_id:
-          type: string
-          format: uuid
-        jugadores:
-          type: array
-          items:
-            $ref: '#/components/schemas/ConvocadoInput'
+        es_privado:
+          type: boolean
         estado:
           type: string
-          enum: [buscando, emparejado, cancelada]
+          enum: [esperando_rival, aceptado, cancelado]
         partido_id:
           type: [string, "null"]
           format: uuid
