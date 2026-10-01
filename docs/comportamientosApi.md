@@ -2,13 +2,13 @@
 
 ### **Estructura Obligatoria del Código (Plantilla)**
 
-Para que el motor de simulación pueda interpretar y ejecutar el comportamiento de un jugador, todo código proporcionado por el usuario debe incluir obligatoriamente una función principal llamada `decidir_accion()`. El sistema invocará esta función automáticamente en cada tick.
+Para que el motor de simulación pueda interpretar y ejecutar el comportamiento de un jugador, todo código proporcionado por el usuario debe incluir obligatoriamente una función principal llamada `decide_action()`. El sistema invocará esta función automáticamente en cada tick.
 
-La función `decidir_accion()` no recibe parámetros de entrada y toda acción ejecutada tomará exactamente un (1) tick. Las acciones de movimiento no son continuas, si se necesita que un jugador se desplace hacia un punto, se debe indicar la dirección de movimiento y la intensidad en cada tick sucesivo. Para que el jugador conozca el estado actual del partido, debe invocar las **Primitivas de posición (Lectura de Entorno)** dentro de esta función.
+La función `decide_action()` no recibe parámetros de entrada y toda acción ejecutada tomará exactamente un (1) tick. Las acciones de movimiento no son continuas, si se necesita que un jugador se desplace hacia un punto, se debe indicar la dirección de movimiento y la intensidad en cada tick sucesivo. Para que el jugador conozca el estado actual del partido, debe invocar las **Primitivas de posición (Lectura de Entorno)** dentro de esta función.
 
 **Ejemplo de plantilla:**
 ```python
-def decidir_accion():
+def decide_action():
     # 1. Obtener el estado usando primitivas
     x, y = my_pos()
     px, py = ball_pos()
@@ -54,6 +54,6 @@ Estas funciones requieren parámetros de entrada y dictan la acción del jugador
 | Primitiva | Parámetros | Descripción | Atributo Asociado |
 | :--- | :--- | :--- | :--- |
 | `move(dx, dy, porcentaje_velocidad)` | `dx`: Dirección horizontal (vector).<br>`dy`: Dirección vertical (vector).<br>`porcentaje_velocidad`: Porcentaje de velocidad a utilizar (0-100). | Aplica movimiento al jugador en la dirección especificada durante este tick. La distancia recorrida depende del porcentaje y de la velocidad base. | **Speed** |
-| `pass(jugador_id)` | `jugador_id`: ID del compañero. | Intenta golpear la pelota en dirección al compañero seleccionado en este tick. | **Agility**, **Power**, **Strength** |
+| `pass_to(jugador_id)` | `jugador_id`: ID del compañero. | Intenta golpear la pelota en dirección al compañero seleccionado en este tick. | **Agility**, **Power**, **Strength** |
 | `shoot(dx, dy, porcentaje_power)` | `dx`: Dirección horizontal del remate.<br>`dy`: Dirección vertical del remate.<br>`porcentaje_power`: Fuerza del golpe (0-100). | Intenta ejecutar un remate en la dirección vectorial especificada durante este tick. | **Agility**, **Power**, **Strength** |
 | `shoot_arco()` | Ninguno | Intenta ejecutar un remate apuntando automáticamente en la dirección del arco rival. | **Agility**, **Power**, **Strength** |
