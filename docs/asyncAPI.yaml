@@ -2,8 +2,8 @@ asyncapi: 3.1.0
 
 info:
   title: FutBot - Especificación de los canales WebSocket de la API de FutBot
-  version: 1.0.0
-  description: Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, fin de partido) y durante la espera de inicio de ligas y amistosos (inscripciones, abandonos, inicio).
+  version: 1.1.0
+  description: Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, fin de partido) y durante la espera de inicio de ligas y amistosos (inscripciones, abandonos, inicio). Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
 
 servers:
   development:
@@ -34,7 +34,7 @@ channels:
       friendly_id:
         description: ID único del amistoso.
     messages:
-      clubRegistered:
+      friendlyClubRegistered:
         $ref: '#/components/messages/FriendlyClubRegistered'
       friendlyStart:
         $ref: '#/components/messages/FriendlyStart'
@@ -86,320 +86,477 @@ components:
   messages:
     # --- ligaLobbyStream ---
     ClubRegistered:
+      name: clubRegistered
       description: Notifica que un club se inscribió en la liga.
       payload:
         type: object
-        required: [league_id, club_id, club_name, registered_count]
+        required: [type, data]
         properties:
-          league_id:
+          type:
             type: string
-            description: ID de la liga.
-          club_id:
-            type: string
-            description: ID del club que se inscribió.
-          club_name:
-            type: string
-            description: Nombre del club que se inscribió.
-          registered_count:
-            type: integer
-            description: Cantidad total de clubes inscriptos en la liga tras esta inscripción.
+            const: clubRegistered
+          data:
+            $ref: '#/components/schemas/ClubRegisteredData'
 
     ClubLeft:
+      name: clubLeft
       description: Notifica que un club abandonó la liga.
       payload:
         type: object
-        required: [league_id, club_id, registered_count]
+        required: [type, data]
         properties:
-          league_id:
+          type:
             type: string
-            description: ID de la liga.
-          club_id:
-            type: string
-            description: ID del club que abandonó.
-          registered_count:
-            type: integer
-            description: Cantidad total de clubes inscriptos en la liga tras este abandono.
+            const: clubLeft
+          data:
+            $ref: '#/components/schemas/ClubLeftData'
 
     LeagueStarted:
+      name: leagueStarted
       description: Notifica que la liga arrancó.
       payload:
         type: object
-        required: [league_id]
+        required: [type, data]
         properties:
-          league_id:
+          type:
             type: string
-            description: ID de la liga.
+            const: leagueStarted
+          data:
+            $ref: '#/components/schemas/LeagueStartedData'
     
     LeagueCancelled:
+      name: leagueCancelled
       description: Notifica a los clubes inscriptos que el dueño canceló la liga antes de su inicio.
       payload:
         type: object
-        required: [league_id]
+        required: [type, data]
         properties:
-          league_id:
+          type:
             type: string
-            description: ID de la liga que fue cancelada.
+            const: leagueCancelled
+          data:
+            $ref: '#/components/schemas/LeagueCancelledData'
 
     # --- amistosoLobbyStream ---
     FriendlyClubRegistered:
+      name: friendlyClubRegistered
       description: Notifica al creador del amistoso que un club rival se inscribió.
       payload:
         type: object
-        required: [friendly_id, club_id, club_name]
+        required: [type, data]
         properties:
-          friendly_id:
+          type:
             type: string
-            description: ID del amistoso.
-          club_id:
-            type: string
-            description: ID del club que se inscribió.
-          club_name:
-            type: string
-            description: Nombre del club que se inscribió.
+            const: friendlyClubRegistered
+          data:
+            $ref: '#/components/schemas/FriendlyClubRegisteredData'
 
     FriendlyStart:
+      name: friendlyStart
       description: Notifica que el partido del amistoso está por comenzar, tras la ventana de espera de 30 segundos. El canal se cierra después de emitir este mensaje.
       payload:
         type: object
-        required: [friendly_id, match_id]
+        required: [type, data]
         properties:
-          friendly_id:
+          type:
             type: string
-            description: ID del amistoso.
-          match_id:
-            type: string
-            description: ID del partido creado, para que el frontend navegue a su vista y se suscriba a matchStream.
+            const: friendlyStart
+          data:
+            $ref: '#/components/schemas/FriendlyStartData'
 
     # --- partidoStream ---
     MatchStarted:
+      name: matchStarted
       description: Notifica al usuario que el partido ha comenzado.
       payload:
         type: object
-        required:
-          - match_id
-          - match_start
-          - home_score
-          - away_score
-          - status
+        required: [type, data]
         properties:
-          match_id:
+          type:
             type: string
-            description: ID del partido.
-          home_lineup:
-            $ref: '#/components/schemas/Lineup'
-          away_lineup:
-            $ref: '#/components/schemas/Lineup'
-          match_start:
-            type: string
-            format: date-time
-            description: Fecha y hora de incio del partido.
-          home_score:
-            type: integer
-            description: Marcador del equipo local.
-          away_score:
-            type: integer
-            description: Marcador del equipo visitante.
-          status:
-            type: string
-            enum:
-              - in_progress
-              - paused
-              - finished
-            description: Estado actual del partido.
+            const: matchStarted
+          data:
+            $ref: '#/components/schemas/MatchStartedData'
 
     MatchState:
+      name: matchState
       description: Notifica el estado del partido en el tick actual (posiciones de jugadores y pelota). Se emite en cada tick de la simulación.
       payload:
         type: object
-        required: [match_id, tick, players, ball_position]
+        required: [type, data]
         properties:
-          match_id:
+          type:
             type: string
-            description: ID del partido.
-          tick:
-            type: integer
-            description: Número de tick del partido al que corresponde este estado.
-          players:
-            type: array
-            minItems: 6
-            maxItems: 6
-            items:
-              type: object
-              description: Posición actual de cada jugador en cancha.
-              required: [player_id, position]
-              properties:
-                player_id:
-                  type: string
-                position:
-                  type: object
-                  properties:
-                    x:
-                      type: number
-                      description: Coordenada x (horizontal) del jugador.
-                    'y':
-                      type: number
-                      description: Coordenada y (vertical) del jugador.
-          ball_position:
-            type: object
-            properties:
-              x:
-                type: number
-                description: Cordenada x (horizontal) de la pelota.
-              'y':
-                type: number
-                description: Coordenada y (vertical) de la pelota.
+            const: matchState
+          data:
+            $ref: '#/components/schemas/MatchStateData'
 
     Goal:
+      name: goal
       description: Notifica al usuario que se ha marcado un gol en el partido.
       payload:
         type: object
-        required:
-          - match_id
-          - tick
-          - player_id
-          - minute
-          - team_id
+        required: [type, data]
         properties:
-          match_id:
+          type:
             type: string
-            description: ID del partido.
-          tick:
-            type: integer
-            description: Tick del partido en el que se marcó el gol.
-          player_id:
-            type: string
-            description: ID del jugador que marcó.
-          minute:
-            type: integer
-            description: Minuto simulado en el cual ocurrió el gol (derivado del tick).
-          team_id:
-            type: string
-            description: ID del equipo que marcó.
+            const: goal
+          data:
+            $ref: '#/components/schemas/GoalData'
 
     CoolingBreakStart:
-      description: Notifica al usuario que ha iniciado un partido.
+      name: coolingBreakStart
+      description: Notifica al usuario que comenzó una pausa de hidratación (cooling break) del partido.
       payload:
         type: object
-        required:
-          - match_id
-          - tick
-          - cooling_break_number
-          - cooling_break_start
+        required: [type, data]
         properties:
-          match_id:
+          type:
             type: string
-            description: ID del partido.
-          tick:
-            type: integer
-            description: Tick del partido en el que inició el cooling break.
-          cooling_break_number:
-            type: integer
-            description: 'Numero del cooling break, primero o segundo.'
-          cooling_break_start:
-            type: string
-            format: date-time
-            description: Fecha y hora del inicio del cooling break.
+            const: coolingBreakStart
+          data:
+            $ref: '#/components/schemas/CoolingBreakStartData'
 
     HalftimeStart:
+      name: halftimeStart
       description: Notifica al usuario que ha iniciado el descanso (entretiempo) del partido.
       payload:
         type: object
-        required:
-          - match_id
-          - tick
-          - halftime_start
+        required: [type, data]
         properties:
-          match_id:
+          type:
             type: string
-            description: ID del partido.
-          tick:
-            type: integer
-            description: Tick del partido en el que inició el descanso.
-          halftime_start:
-            type: string
-            format: date-time
-            description: Fecha y hora del inicio del descanso.
+            const: halftimeStart
+          data:
+            $ref: '#/components/schemas/HalftimeStartData'
 
     MatchResumed:
+      name: matchResumed
       description: Notifica la reanudación del partido luego de una pausa.
       payload:
         type: object
-        required:
-          - match_id
-          - tick
-          - resume_type
+        required: [type, data]
         properties:
-          match_id:
+          type:
             type: string
-            description: ID del partido.
-          tick:
-            type: integer
-            description: Tick del partido en el que se reanudó.
-          resume_type:
-            type: string
-            enum:
-              - after_cooling_break_1
-              - after_cooling_break_2
-              - after_halftime
+            const: matchResumed
+          data:
+            $ref: '#/components/schemas/MatchResumedData'
 
     SubstitutionMade:
+      name: substitutionMade
       description: Notifica que se ejecutó una sustitución programada.
       payload:
         type: object
-        required:
-          - match_id
-          - tick
-          - player_in_id
-          - player_out_id
+        required: [type, data]
         properties:
-          match_id:
+          type:
             type: string
-            description: ID del partido.
-          tick:
-            type: integer
-            description: Tick del partido en el que se ejecutó el cambio.
-          player_in_id:
-            type: string
-            description: ID del jugador que entra.
-          player_out_id:
-            type: string
-            description: ID del jugador que sale.
+            const: substitutionMade
+          data:
+            $ref: '#/components/schemas/SubstitutionMadeData'
 
     MatchFinished:
+      name: matchFinished
       description: Notifica al usuario que el partido ha terminado.
       payload:
         type: object
-        required:
-          - match_id
-          - tick
-          - match_end
-          - home_score
-          - away_score
-          - status
+        required: [type, data]
         properties:
-          match_id:
+          type:
             type: string
-            description: ID del partido.
-          tick:
-            type: integer
-            description: Último tick simulado del partido.
-          match_end:
-            type: string
-            format: date-time
-            description: Fecha y hora del final del partido.
-          home_score:
-            type: integer
-            description: Marcador final del equipo local.
-          away_score:
-            type: integer
-            description: Marcador final del equipo visitante.
-          status:
-            type: string
-            enum:
-              - finished
-            description: Estado final del partido.
+            const: matchFinished
+          data:
+            $ref: '#/components/schemas/MatchFinishedData'
 
   schemas:
+    # --- ligaLobbyStream ---
+    ClubRegisteredData:
+      type: object
+      required: [league_id, club_id, club_name, registered_count]
+      properties:
+        league_id:
+          type: string
+          description: ID de la liga.
+        club_id:
+          type: string
+          description: ID del club que se inscribió.
+        club_name:
+          type: string
+          description: Nombre del club que se inscribió.
+        registered_count:
+          type: integer
+          description: Cantidad total de clubes inscriptos en la liga tras esta inscripción.
+
+    ClubLeftData:
+      type: object
+      required: [league_id, club_id, registered_count]
+      properties:
+        league_id:
+          type: string
+          description: ID de la liga.
+        club_id:
+          type: string
+          description: ID del club que abandonó.
+        registered_count:
+          type: integer
+          description: Cantidad total de clubes inscriptos en la liga tras este abandono.
+
+    LeagueStartedData:
+      type: object
+      required: [league_id]
+      properties:
+        league_id:
+          type: string
+          description: ID de la liga.
+
+    LeagueCancelledData:
+      type: object
+      required: [league_id]
+      properties:
+        league_id:
+          type: string
+          description: ID de la liga que fue cancelada.
+
+    # --- amistosoLobbyStream ---
+    FriendlyClubRegisteredData:
+      type: object
+      required: [friendly_id, club_id, club_name]
+      properties:
+        friendly_id:
+          type: string
+          description: ID del amistoso.
+        club_id:
+          type: string
+          description: ID del club que se inscribió.
+        club_name:
+          type: string
+          description: Nombre del club que se inscribió.
+
+    FriendlyStartData:
+      type: object
+      required: [friendly_id, match_id]
+      properties:
+        friendly_id:
+          type: string
+          description: ID del amistoso.
+        match_id:
+          type: string
+          description: ID del partido creado, para que el frontend navegue a su vista y se suscriba a matchStream.
+
+    # --- partidoStream ---
+    MatchStartedData:
+      type: object
+      required:
+        - match_id
+        - match_start
+        - home_score
+        - away_score
+        - status
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        home_lineup:
+          $ref: '#/components/schemas/Lineup'
+        away_lineup:
+          $ref: '#/components/schemas/Lineup'
+        match_start:
+          type: string
+          format: date-time
+          description: Fecha y hora de incio del partido.
+        home_score:
+          type: integer
+          description: Marcador del equipo local.
+        away_score:
+          type: integer
+          description: Marcador del equipo visitante.
+        status:
+          type: string
+          enum:
+            - in_progress
+            - paused
+            - finished
+          description: Estado actual del partido.
+
+    MatchStateData:
+      type: object
+      required: [match_id, tick, players, ball_position]
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        tick:
+          type: integer
+          description: Número de tick del partido al que corresponde este estado.
+        players:
+          type: array
+          minItems: 6
+          maxItems: 6
+          items:
+            type: object
+            description: Posición actual de cada jugador en cancha.
+            required: [player_id, position]
+            properties:
+              player_id:
+                type: string
+              position:
+                type: object
+                properties:
+                  x:
+                    type: number
+                    description: Coordenada x (horizontal) del jugador.
+                  'y':
+                    type: number
+                    description: Coordenada y (vertical) del jugador.
+        ball_position:
+          type: object
+          properties:
+            x:
+              type: number
+              description: Cordenada x (horizontal) de la pelota.
+            'y':
+              type: number
+              description: Coordenada y (vertical) de la pelota.
+
+    GoalData:
+      type: object
+      required:
+        - match_id
+        - tick
+        - player_id
+        - minute
+        - team_id
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        tick:
+          type: integer
+          description: Tick del partido en el que se marcó el gol.
+        player_id:
+          type: string
+          description: ID del jugador que marcó.
+        minute:
+          type: integer
+          description: Minuto simulado en el cual ocurrió el gol (derivado del tick).
+        team_id:
+          type: string
+          description: ID del equipo que marcó.
+
+    CoolingBreakStartData:
+      type: object
+      required:
+        - match_id
+        - tick
+        - cooling_break_number
+        - cooling_break_start
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        tick:
+          type: integer
+          description: Tick del partido en el que inició el cooling break.
+        cooling_break_number:
+          type: integer
+          description: 'Numero del cooling break, primero o segundo.'
+        cooling_break_start:
+          type: string
+          format: date-time
+          description: Fecha y hora del inicio del cooling break.
+
+    HalftimeStartData:
+      type: object
+      required:
+        - match_id
+        - tick
+        - halftime_start
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        tick:
+          type: integer
+          description: Tick del partido en el que inició el descanso.
+        halftime_start:
+          type: string
+          format: date-time
+          description: Fecha y hora del inicio del descanso.
+
+    MatchResumedData:
+      type: object
+      required:
+        - match_id
+        - tick
+        - resume_type
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        tick:
+          type: integer
+          description: Tick del partido en el que se reanudó.
+        resume_type:
+          type: string
+          enum:
+            - after_cooling_break_1
+            - after_cooling_break_2
+            - after_halftime
+
+    SubstitutionMadeData:
+      type: object
+      required:
+        - match_id
+        - tick
+        - player_in_id
+        - player_out_id
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        tick:
+          type: integer
+          description: Tick del partido en el que se ejecutó el cambio.
+        player_in_id:
+          type: string
+          description: ID del jugador que entra.
+        player_out_id:
+          type: string
+          description: ID del jugador que sale.
+
+    MatchFinishedData:
+      type: object
+      required:
+        - match_id
+        - tick
+        - match_end
+        - home_score
+        - away_score
+        - status
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        tick:
+          type: integer
+          description: Último tick simulado del partido.
+        match_end:
+          type: string
+          format: date-time
+          description: Fecha y hora del final del partido.
+        home_score:
+          type: integer
+          description: Marcador final del equipo local.
+        away_score:
+          type: integer
+          description: Marcador final del equipo visitante.
+        status:
+          type: string
+          enum:
+            - finished
+          description: Estado final del partido.
+
     Lineup:
       type: array
       description: Lista de jugadores del equipo con sus atributos PACSS.
