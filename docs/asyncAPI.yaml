@@ -2,13 +2,20 @@ asyncapi: 3.1.0
 
 info:
   title: FutBot - Especificación de los canales WebSocket de la API de FutBot
-  version: 1.1.0
-  description: Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, fin de partido) y durante la espera de inicio de ligas y amistosos (inscripciones, abandonos, inicio). Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
+  version: 1.2.0
+  description: |
+    Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, fin de partido) y durante la espera de inicio de ligas y amistosos (inscripciones, abandonos, inicio). Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
+
+    **Autenticación.** Todos los canales requieren el mismo JWT que devuelve `POST /auth/login`, enviado en la query string: `ws://localhost:8000/ws/matches/{match_id}?token=<JWT>` (el `WebSocket` del navegador no permite mandar el header `Authorization`). Si falta o es inválido, el servidor cierra la conexión con el código `4401`.
+
+    **Estado al conectarse.** Al abrir una conexión, el servidor le envía a ese cliente (no a todos) los mensajes necesarios para conocer el estado actual del canal, así no importa en qué momento se conecte.
 
 servers:
   development:
-    host: 'localhost:8080'
+    host: 'localhost:8000'
     protocol: ws
+    security:
+      - $ref: '#/components/securitySchemes/queryToken'
 
 channels:
   leagueLobbyStream:
@@ -29,7 +36,12 @@ channels:
 
   friendlyLobbyStream:
     address: '/ws/friendlies/{friendly_id}/lobby'
-    description: Eventos de inscripción de un rival e inicio del partido, mientras un amistoso espera oponente.
+    description: |
+      Eventos de inscripción de un rival e inicio del partido, mientras un amistoso espera oponente.
+
+      Lo escuchan los dos clubes: el creador apenas crea el amistoso, y el rival después de unirse (`POST /friendlies/{friendly_id}/join`). Si al conectarse el amistoso ya tiene rival, el servidor le envía `friendlyClubRegistered` a ese cliente, así el rival también recibe `starts_at` para la cuenta regresiva.
+
+      Si el amistoso no existe, el servidor cierra la conexión con el código `4404`.
     parameters:
       friendly_id:
         description: ID único del amistoso.
@@ -41,7 +53,15 @@ channels:
 
   matchStream:
     address: '/ws/matches/{match_id}'
-    description: Eventos en tiempo real de un partido puntual.
+    description: |
+      Eventos en tiempo real de un partido puntual.
+
+      Secuencia de mensajes
+      1. Al conectarse: `matchStarted` (solo a ese cliente) y a continuación el último `matchState` disponible. Antes del primer tick puede haber unos segundos de espera hasta `match_start`; durante esa espera el último `matchState` es el del tick 0, con jugadores y pelota en sus posiciones iniciales.
+      2. En cada tick: primero los `goal` de ese tick (si hubo) y después el `matchState`. Los dos llevan el mismo `tick`. Tras un gol, ese `matchState` ya muestra a los jugadores y la pelota en las posiciones iniciales.
+      3. Al terminar: el último `matchState`, después `matchFinished`, y el servidor cierra la conexión con el código `1000`.
+
+      **Cierre de la conexión.** Si el partido no existe o ya terminó, el servidor cierra la conexión con el código `4404`. Cuando el partido termina, el servidor cierra la conexión con el código `1000`.
     parameters:
       match_id:
         description: ID único del partido en curso.
@@ -140,7 +160,7 @@ components:
     # --- amistosoLobbyStream ---
     FriendlyClubRegistered:
       name: friendlyClubRegistered
-      description: Notifica al creador del amistoso que un club rival se inscribió.
+      description: Notifica a los clubes del amistoso que un club rival se inscribió y cuándo arranca el partido.
       payload:
         type: object
         required: [type, data]
@@ -150,6 +170,15 @@ components:
             const: friendlyClubRegistered
           data:
             $ref: '#/components/schemas/FriendlyClubRegisteredData'
+      examples:
+        - name: rivalInscripto
+          payload:
+            type: friendlyClubRegistered
+            data:
+              friendly_id: 9b2f6c1e-4d3a-4f7b-8a21-5c0e9d7b3a10
+              club_id: c2a7e5d4-8b1f-4c3e-9a6d-2f4b8e1c7a55
+              club_name: Chaca
+              starts_at: '2026-10-04T18:30:30Z'
 
     FriendlyStart:
       name: friendlyStart
@@ -163,11 +192,18 @@ components:
             const: friendlyStart
           data:
             $ref: '#/components/schemas/FriendlyStartData'
+      examples:
+        - name: inicioAmistoso
+          payload:
+            type: friendlyStart
+            data:
+              friendly_id: 9b2f6c1e-4d3a-4f7b-8a21-5c0e9d7b3a10
+              match_id: 5e1d3c7a-2b9f-4a6e-8c4d-1f7a9b3e6d22
 
     # --- partidoStream ---
     MatchStarted:
       name: matchStarted
-      description: Notifica al usuario que el partido ha comenzado.
+      description: Datos iniciales del partido (clubes, alineaciones, duración y marcador). Se envía a cada cliente apenas se conecta, no es un broadcast, así quien entra a la vista tiene todo lo necesario para dibujarla.
       payload:
         type: object
         required: [type, data]
@@ -177,10 +213,73 @@ components:
             const: matchStarted
           data:
             $ref: '#/components/schemas/MatchStartedData'
+      examples:
+        - name: alConectarse
+          summary: Alineaciones recortadas a dos jugadores por equipo para el ejemplo (en el partido vienen los 6 convocados de cada club).
+          payload:
+            type: matchStarted
+            data:
+              match_id: 5e1d3c7a-2b9f-4a6e-8c4d-1f7a9b3e6d22
+              home_club:
+                id: a1f4c8e2-6d3b-4e7a-9c5f-3b8d1e6a4f01
+                name: River Plate
+                avatar_url: https://example.com/avatars/lambda.png
+              away_club:
+                id: c2a7e5d4-8b1f-4c3e-9a6d-2f4b8e1c7a55
+                name: Chacarita
+                avatar_url: https://example.com/avatars/pythonistas.png
+              home_lineup:
+                - player_id: 0d9e8f7a-1b2c-4d3e-8f4a-5b6c7d8e9f01
+                  number: 10
+                  name: José
+                  is_starter: true
+                  power: 80
+                  agility: 60
+                  control: 60
+                  speed: 60
+                  strength: 40
+                  behavior_id: 7c6b5a49-3e2d-4f1c-9b8a-6d5e4f3a2b10
+                  behavior_name: Atacante
+                - player_id: 1e2f3a4b-5c6d-4e7f-8a9b-0c1d2e3f4a02
+                  number: 12
+                  name: Pistola
+                  is_starter: false
+                  power: 60
+                  agility: 60
+                  control: 60
+                  speed: 60
+                  strength: 60
+              away_lineup:
+                - player_id: 2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b03
+                  number: 9
+                  name: Toro
+                  is_starter: true
+                  power: 70
+                  agility: 50
+                  control: 60
+                  speed: 70
+                  strength: 50
+                  behavior_id: 8d7c6b5a-4f3e-4a2d-8c9b-7e6f5a4b3c21
+                  behavior_name: Defensor
+                - player_id: 3a4b5c6d-7e8f-4a9b-8c1d-2e3f4a5b6c04
+                  number: 5
+                  name: Discoteca
+                  is_starter: false
+                  power: 60
+                  agility: 60
+                  control: 60
+                  speed: 60
+                  strength: 60
+              match_start: '2026-10-04T18:30:33Z'
+              tick: 0
+              total_ticks: 3000
+              home_score: 0
+              away_score: 0
+              status: in_progress
 
     MatchState:
       name: matchState
-      description: Notifica el estado del partido en el tick actual (posiciones de jugadores y pelota). Se emite en cada tick de la simulación.
+      description: Notifica el estado del partido en el tick actual (posiciones de jugadores y pelota). Se emite en cada tick de la simulación, después de los `goal` de ese tick.
       payload:
         type: object
         required: [type, data]
@@ -190,10 +289,31 @@ components:
             const: matchState
           data:
             $ref: '#/components/schemas/MatchStateData'
+      examples:
+        - name: tickEnJuego
+          payload:
+            type: matchState
+            data:
+              match_id: 5e1d3c7a-2b9f-4a6e-8c4d-1f7a9b3e6d22
+              tick: 1234
+              players:
+                - player_id: 0d9e8f7a-1b2c-4d3e-8f4a-5b6c7d8e9f01
+                  position: {x: 6.42, 'y': -1.1}
+                - player_id: 4b5c6d7e-8f9a-4b0c-9d1e-3f4a5b6c7d05
+                  position: {x: -3.8, 'y': 4.25}
+                - player_id: 5c6d7e8f-9a0b-4c1d-8e2f-4a5b6c7d8e06
+                  position: {x: -10.0, 'y': -5.5}
+                - player_id: 2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b03
+                  position: {x: 8.15, 'y': 0.3}
+                - player_id: 6d7e8f9a-0b1c-4d2e-9f3a-5b6c7d8e9f07
+                  position: {x: 12.0, 'y': 5.0}
+                - player_id: 7e8f9a0b-1c2d-4e3f-8a4b-6c7d8e9f0a08
+                  position: {x: 15.7, 'y': -3.2}
+              ball_position: {x: 7.05, 'y': -0.9}
 
     Goal:
       name: goal
-      description: Notifica al usuario que se ha marcado un gol en el partido.
+      description: Notifica al usuario que se ha marcado un gol en el partido. Se envía antes del `matchState` del mismo tick.
       payload:
         type: object
         required: [type, data]
@@ -203,6 +323,18 @@ components:
             const: goal
           data:
             $ref: '#/components/schemas/GoalData'
+      examples:
+        - name: golLocal
+          payload:
+            type: goal
+            data:
+              match_id: 5e1d3c7a-2b9f-4a6e-8c4d-1f7a9b3e6d22
+              tick: 1834
+              player_id: 0d9e8f7a-1b2c-4d3e-8f4a-5b6c7d8e9f01
+              minute: 3
+              team_id: a1f4c8e2-6d3b-4e7a-9c5f-3b8d1e6a4f01
+              home_score: 1
+              away_score: 0
 
     CoolingBreakStart:
       name: coolingBreakStart
@@ -258,7 +390,7 @@ components:
 
     MatchFinished:
       name: matchFinished
-      description: Notifica al usuario que el partido ha terminado.
+      description: Notifica al usuario que el partido ha terminado. Es el último mensaje del canal, se envía después del último `matchState` y luego el servidor cierra la conexión con el código `1000`.
       payload:
         type: object
         required: [type, data]
@@ -268,6 +400,17 @@ components:
             const: matchFinished
           data:
             $ref: '#/components/schemas/MatchFinishedData'
+      examples:
+        - name: finDelPartido
+          payload:
+            type: matchFinished
+            data:
+              match_id: 5e1d3c7a-2b9f-4a6e-8c4d-1f7a9b3e6d22
+              tick: 2999
+              match_end: '2026-10-04T18:35:33Z'
+              home_score: 2
+              away_score: 1
+              status: finished
 
   schemas:
     # --- ligaLobbyStream ---
@@ -321,7 +464,7 @@ components:
     # --- amistosoLobbyStream ---
     FriendlyClubRegisteredData:
       type: object
-      required: [friendly_id, club_id, club_name]
+      required: [friendly_id, club_id, club_name, starts_at]
       properties:
         friendly_id:
           type: string
@@ -332,6 +475,10 @@ components:
         club_name:
           type: string
           description: Nombre del club que se inscribió.
+        starts_at:
+          type: string
+          format: date-time
+          description: Fecha y hora en que termina la ventana de espera de 30 segundos y se emite `friendlyStart`. Sirve para mostrar la cuenta regresiva.
 
     FriendlyStartData:
       type: object
@@ -349,7 +496,13 @@ components:
       type: object
       required:
         - match_id
+        - home_club
+        - away_club
+        - home_lineup
+        - away_lineup
         - match_start
+        - tick
+        - total_ticks
         - home_score
         - away_score
         - status
@@ -357,6 +510,10 @@ components:
         match_id:
           type: string
           description: ID del partido.
+        home_club:
+          $ref: '#/components/schemas/ClubSummaryData'
+        away_club:
+          $ref: '#/components/schemas/ClubSummaryData'
         home_lineup:
           $ref: '#/components/schemas/Lineup'
         away_lineup:
@@ -364,7 +521,13 @@ components:
         match_start:
           type: string
           format: date-time
-          description: Fecha y hora de incio del partido.
+          description: Fecha y hora en que arranca (o arrancó) el tick 0.
+        tick:
+          type: integer
+          description: Tick actual del partido al momento de conectarse.
+        total_ticks:
+          type: integer
+          description: Duración total del partido en ticks (10 ticks = 1 segundo).
         home_score:
           type: integer
           description: Marcador del equipo local.
@@ -402,6 +565,7 @@ components:
                 type: string
               position:
                 type: object
+                required: [x, 'y']
                 properties:
                   x:
                     type: number
@@ -411,10 +575,11 @@ components:
                     description: Coordenada y (vertical) del jugador.
         ball_position:
           type: object
+          required: [x, 'y']
           properties:
             x:
               type: number
-              description: Cordenada x (horizontal) de la pelota.
+              description: Coordenada x (horizontal) de la pelota.
             'y':
               type: number
               description: Coordenada y (vertical) de la pelota.
@@ -427,6 +592,8 @@ components:
         - player_id
         - minute
         - team_id
+        - home_score
+        - away_score
       properties:
         match_id:
           type: string
@@ -436,13 +603,19 @@ components:
           description: Tick del partido en el que se marcó el gol.
         player_id:
           type: string
-          description: ID del jugador que marcó.
+          description: ID del último jugador que tocó la pelota antes del gol. En un gol en contra es un jugador del equipo rival al indicado en `team_id`.
         minute:
           type: integer
           description: Minuto simulado en el cual ocurrió el gol (derivado del tick).
         team_id:
           type: string
-          description: ID del equipo que marcó.
+          description: ID del equipo al que se le suma el gol.
+        home_score:
+          type: integer
+          description: Marcador del equipo local después de este gol.
+        away_score:
+          type: integer
+          description: Marcador del equipo visitante después de este gol.
 
     CoolingBreakStartData:
       type: object
@@ -557,9 +730,24 @@ components:
             - finished
           description: Estado final del partido.
 
+    ClubSummaryData:
+      type: object
+      description: Datos de un club para mostrar en el marcador.
+      required: [id, name, avatar_url]
+      properties:
+        id:
+          type: string
+          description: ID del club (el mismo que `team_id` en `goal`).
+        name:
+          type: string
+          description: Nombre del club.
+        avatar_url:
+          type: string
+          description: URL del avatar del club.
+
     Lineup:
       type: array
-      description: Lista de jugadores del equipo con sus atributos PACSS.
+      description: Lista de los 6 convocados del equipo (titulares y suplentes) con sus atributos PACSS.
       items:
         type: object
         required:
@@ -576,6 +764,9 @@ components:
             description: Número de camiseta del jugador
             minimum: 1
             maximum: 99
+          name:
+            type: string
+            description: Nombre del jugador.
           is_starter:
             type: boolean
             description: 'true si es Titular, false si no.'
@@ -610,3 +801,10 @@ components:
           behavior_name:
             type: string
             description: Nombre visible del comportamiento.
+
+  securitySchemes:
+    queryToken:
+      type: httpApiKey
+      name: token
+      in: query
+      description: JWT de sesión (el que devuelve `POST /auth/login`) en el parámetro `token` de la URL. Si falta o es inválido, el servidor cierra la conexión con el código `4401`.
