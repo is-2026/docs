@@ -1802,6 +1802,7 @@ components:
           type: string
         password:
           type: [string, "null"]
+          format: password
         max_clubs:
           type: integer
           minimum: 3
@@ -1901,6 +1902,7 @@ components:
       properties:
         password:
           type: string
+          format: password
         formation:
           description: Formación con la que el club arranca la liga
           $ref: '#/components/schemas/FormationPreset'
@@ -1945,6 +1947,7 @@ components:
       properties:
         password:
           type: string
+          format: password
           description: Si se provee, el amistoso será privado.
         formation:
           description: Formación con la que el club creador juega el amistoso
@@ -1963,6 +1966,7 @@ components:
       properties:
         password:
           type: string
+          format: password
           description: Requerido si el amistoso es privado.
         formation:
           description: Formación con la que el club que se une juega el amistoso
