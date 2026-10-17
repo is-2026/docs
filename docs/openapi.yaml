@@ -1625,9 +1625,6 @@ components:
         avatar_url:
           type: string
           format: uri
-        default_formation_id:
-          type: string
-          format: uuid
         user_id:
           type: string
           format: uuid
