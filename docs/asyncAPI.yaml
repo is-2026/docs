@@ -2,13 +2,13 @@ asyncapi: 3.1.0
 
 info:
   title: FutBot - Especificación de los canales WebSocket de la API de FutBot
-  version: 1.2.0
+  version: 2.0.0
   description: |
-    Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, fin de partido) y durante la espera de inicio de ligas y amistosos (inscripciones, abandonos, inicio). Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
+    Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, penales, fin de partido), en el lobby de ligas y amistosos, y en las notificaciones del club. Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
 
     **Autenticación.** Todos los canales requieren el mismo JWT que devuelve `POST /auth/login`, enviado en la query string: `ws://localhost:8000/ws/matches/{match_id}?token=<JWT>` (el `WebSocket` del navegador no permite mandar el header `Authorization`). Si falta o es inválido, el servidor cierra la conexión con el código `4401`.
 
-    **Estado al conectarse.** Al abrir una conexión, el servidor le envía a ese cliente (no a todos) los mensajes necesarios para conocer el estado actual del canal, así no importa en qué momento se conecte.
+    **Estado al conectarse.** En `matchStream` y `friendlyLobbyStream`, al abrir una conexión el servidor le envía a ese cliente (no a todos) los mensajes necesarios para conocer el estado actual del canal. En `leagueLobbyStream` y `notificationStream` el estado se pide por REST y el canal solo avisa las novedades.
 
 servers:
   development:
@@ -20,7 +20,12 @@ servers:
 channels:
   leagueLobbyStream:
     address: '/ws/leagues/{league_id}/lobby'
-    description: Eventos de inscripción/abandono de clubes e inicio, mientras una liga espera para arrancar.
+    description: |
+      Eventos de una liga, mientras espera para arrancar y mientras se juega.
+
+      El canal no manda estado al conectarse: el detalle, el fixture y la tabla se piden con `GET /leagues/{league_id}`, `GET /leagues/{league_id}/matches` y `GET /leagues/{league_id}/standings`. Con la liga en curso, ante cada `leagueUpdated` el frontend vuelve a pedirlos.
+
+      Si la liga no existe o está cancelada, el servidor cierra la conexión con el código `4404`.
     parameters:
       league_id:
         description: ID único de la liga.
@@ -33,6 +38,8 @@ channels:
         $ref: '#/components/messages/LeagueStarted'
       leagueCancelled:
         $ref: '#/components/messages/LeagueCancelled'
+      leagueUpdated:
+        $ref: '#/components/messages/LeagueUpdated'
 
   friendlyLobbyStream:
     address: '/ws/friendlies/{friendly_id}/lobby'
@@ -54,14 +61,18 @@ channels:
   matchStream:
     address: '/ws/matches/{match_id}'
     description: |
-      Eventos en tiempo real de un partido puntual.
+      Eventos en tiempo real de un partido puntual: un amistoso, un partido de liga o una prueba de comportamiento (`POST /club/behaviors/test`).
 
       Secuencia de mensajes
       1. Al conectarse: `matchStarted` (solo a ese cliente) y a continuación el último `matchState` disponible. Antes del primer tick puede haber unos segundos de espera hasta `match_start`; durante esa espera el último `matchState` es el del tick 0, con jugadores y pelota en sus posiciones iniciales.
       2. En cada tick: primero los `goal` de ese tick (si hubo) y después el `matchState`. Los dos llevan el mismo `tick`. Tras un gol, ese `matchState` ya muestra a los jugadores y la pelota en las posiciones iniciales.
-      3. Al terminar: el último `matchState`, después `matchFinished`, y el servidor cierra la conexión con el código `1000`.
+      3. Pausas: después de los ticks `T/4`, `T/2` y `3T/4` (con `T` = `total_ticks`) llega `coolingBreakStart`, `halftimeStart` y `coolingBreakStart`. Durante la pausa no llegan `matchState`, y las sustituciones se ejecutan con `substitutionMade`. Al terminar llega `matchResumed`.
+      4. Penales (solo en una liga sin empates, si el partido terminó igualado): `penaltyShootoutStart` abre una ventana para elegir los pateadores. Después, en cada penal llegan los `matchState` con los dos jugadores del penal y al final un `penaltyResult`.
+      5. Al terminar: el último `matchState`, después `matchFinished`, y el servidor cierra la conexión con el código `1000`.
 
-      **Cierre de la conexión.** Si el partido no existe o ya terminó, el servidor cierra la conexión con el código `4404`. Cuando el partido termina, el servidor cierra la conexión con el código `1000`.
+      Una prueba de comportamiento tiene un jugador por equipo, dura 600 ticks y no tiene pausas ni penales.
+
+      **Cierre de la conexión.** Si el partido no existe o ya terminó, el servidor cierra la conexión con el código `4404`. Cuando el partido termina, la cierra con el código `1000`.
     parameters:
       match_id:
         description: ID único del partido en curso.
@@ -80,15 +91,29 @@ channels:
         $ref: '#/components/messages/MatchResumed'
       substitutionMade:
         $ref: '#/components/messages/SubstitutionMade'
+      penaltyShootoutStart:
+        $ref: '#/components/messages/PenaltyShootoutStart'
+      penaltyResult:
+        $ref: '#/components/messages/PenaltyResult'
       matchFinished:
         $ref: '#/components/messages/MatchFinished'
+
+  notificationStream:
+    address: '/ws/notifications'
+    description: |
+      Notificaciones nuevas del club del usuario. Las anteriores se piden con `GET /notifications`.
+
+      Si el usuario no tiene club, el servidor cierra la conexión con el código `4404`.
+    messages:
+      notification:
+        $ref: '#/components/messages/Notification'
 
 operations:
   receiveLeagueLobbyEvent:
     action: receive
     channel:
       $ref: '#/channels/leagueLobbyStream'
-    summary: El usuario recibe notificaciones cuando un club se une o abandona la liga mientras espera que inicie, y cuando la liga arranca.
+    summary: El usuario recibe los eventos de una liga, mientras espera que inicie y mientras se juega.
 
   receiveFriendlyLobbyEvent:
     action: receive
@@ -102,9 +127,15 @@ operations:
       $ref: '#/channels/matchStream'
     summary: El usuario recibe todos los eventos que ocurren durante la simulación del partido.
 
+  receiveNotification:
+    action: receive
+    channel:
+      $ref: '#/channels/notificationStream'
+    summary: El usuario recibe las notificaciones nuevas de su club.
+
 components:
   messages:
-    # --- ligaLobbyStream ---
+    # --- leagueLobbyStream ---
     ClubRegistered:
       name: clubRegistered
       description: Notifica que un club se inscribió en la liga.
@@ -143,7 +174,7 @@ components:
             const: leagueStarted
           data:
             $ref: '#/components/schemas/LeagueStartedData'
-    
+
     LeagueCancelled:
       name: leagueCancelled
       description: Notifica a los clubes inscriptos que el dueño canceló la liga antes de su inicio.
@@ -157,7 +188,20 @@ components:
           data:
             $ref: '#/components/schemas/LeagueCancelledData'
 
-    # --- amistosoLobbyStream ---
+    LeagueUpdated:
+      name: leagueUpdated
+      description: Notifica que cambió algo de una liga en curso (arrancó o terminó un partido, o terminó la liga). El frontend vuelve a pedir el detalle, el fixture y la tabla.
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type:
+            type: string
+            const: leagueUpdated
+          data:
+            $ref: '#/components/schemas/LeagueUpdatedData'
+
+    # --- friendlyLobbyStream ---
     FriendlyClubRegistered:
       name: friendlyClubRegistered
       description: Notifica a los clubes del amistoso que un club rival se inscribió y cuándo arranca el partido.
@@ -200,7 +244,7 @@ components:
               friendly_id: 9b2f6c1e-4d3a-4f7b-8a21-5c0e9d7b3a10
               match_id: 5e1d3c7a-2b9f-4a6e-8c4d-1f7a9b3e6d22
 
-    # --- partidoStream ---
+    # --- matchStream ---
     MatchStarted:
       name: matchStarted
       description: Datos iniciales del partido (clubes, alineaciones, duración y marcador). Se envía a cada cliente apenas se conecta, no es un broadcast, así quien entra a la vista tiene todo lo necesario para dibujarla.
@@ -259,8 +303,6 @@ components:
                   control: 60
                   speed: 70
                   strength: 50
-                  behavior_id: 8d7c6b5a-4f3e-4a2d-8c9b-7e6f5a4b3c21
-                  behavior_name: Defensor
                 - player_id: 3a4b5c6d-7e8f-4a9b-8c1d-2e3f4a5b6c04
                   number: 5
                   name: Discoteca
@@ -377,7 +419,7 @@ components:
 
     SubstitutionMade:
       name: substitutionMade
-      description: Notifica que se ejecutó una sustitución programada.
+      description: Notifica que se ejecutó una sustitución.
       payload:
         type: object
         required: [type, data]
@@ -387,6 +429,32 @@ components:
             const: substitutionMade
           data:
             $ref: '#/components/schemas/SubstitutionMadeData'
+
+    PenaltyShootoutStart:
+      name: penaltyShootoutStart
+      description: Notifica que el partido terminó igualado en una liga sin empates y se define por penales. Abre la ventana para elegir los pateadores con `PUT /matches/{match_id}/penalty-order`.
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type:
+            type: string
+            const: penaltyShootoutStart
+          data:
+            $ref: '#/components/schemas/PenaltyShootoutStartData'
+
+    PenaltyResult:
+      name: penaltyResult
+      description: Notifica el resultado de un penal de la tanda y el resultado acumulado.
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type:
+            type: string
+            const: penaltyResult
+          data:
+            $ref: '#/components/schemas/PenaltyResultData'
 
     MatchFinished:
       name: matchFinished
@@ -406,14 +474,30 @@ components:
             type: matchFinished
             data:
               match_id: 5e1d3c7a-2b9f-4a6e-8c4d-1f7a9b3e6d22
-              tick: 2999
-              match_end: '2026-10-04T18:35:33Z'
+              tick: 3000
+              match_end: '2026-10-04T18:36:33Z'
               home_score: 2
               away_score: 1
+              home_penalties: null
+              away_penalties: null
               status: finished
 
+    # --- notificationStream ---
+    Notification:
+      name: notification
+      description: Notifica una notificación nueva del club. Trae los mismos campos que `Notification` de `GET /notifications`.
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type:
+            type: string
+            const: notification
+          data:
+            $ref: '#/components/schemas/NotificationData'
+
   schemas:
-    # --- ligaLobbyStream ---
+    # --- leagueLobbyStream ---
     ClubRegisteredData:
       type: object
       required: [league_id, club_id, club_name, registered_count]
@@ -461,7 +545,15 @@ components:
           type: string
           description: ID de la liga que fue cancelada.
 
-    # --- amistosoLobbyStream ---
+    LeagueUpdatedData:
+      type: object
+      required: [league_id]
+      properties:
+        league_id:
+          type: string
+          description: ID de la liga.
+
+    # --- friendlyLobbyStream ---
     FriendlyClubRegisteredData:
       type: object
       required: [friendly_id, club_id, club_name, starts_at]
@@ -491,7 +583,7 @@ components:
           type: string
           description: ID del partido creado, para que el frontend navegue a su vista y se suscriba a matchStream.
 
-    # --- partidoStream ---
+    # --- matchStream ---
     MatchStartedData:
       type: object
       required:
@@ -554,8 +646,9 @@ components:
           description: Número de tick del partido al que corresponde este estado.
         players:
           type: array
-          minItems: 6
+          minItems: 2
           maxItems: 6
+          description: Jugadores en cancha. Son 6 en un partido, y 2 en una prueba de comportamiento y en cada penal.
           items:
             type: object
             description: Posición actual de cada jugador en cancha.
@@ -624,6 +717,7 @@ components:
         - tick
         - cooling_break_number
         - cooling_break_start
+        - ends_at
       properties:
         match_id:
           type: string
@@ -638,6 +732,10 @@ components:
           type: string
           format: date-time
           description: Fecha y hora del inicio del cooling break.
+        ends_at:
+          type: string
+          format: date-time
+          description: Fecha y hora en que termina el cooling break.
 
     HalftimeStartData:
       type: object
@@ -645,6 +743,7 @@ components:
         - match_id
         - tick
         - halftime_start
+        - ends_at
       properties:
         match_id:
           type: string
@@ -656,6 +755,10 @@ components:
           type: string
           format: date-time
           description: Fecha y hora del inicio del descanso.
+        ends_at:
+          type: string
+          format: date-time
+          description: Fecha y hora en que termina el descanso.
 
     MatchResumedData:
       type: object
@@ -698,6 +801,38 @@ components:
           type: string
           description: ID del jugador que sale.
 
+    PenaltyShootoutStartData:
+      type: object
+      required: [match_id, ends_at]
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        ends_at:
+          type: string
+          format: date-time
+          description: Fecha y hora en que se cierra la ventana para elegir los pateadores.
+
+    PenaltyResultData:
+      type: object
+      required: [match_id, team_id, scored, home_penalties, away_penalties]
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        team_id:
+          type: string
+          description: ID del club que pateó.
+        scored:
+          type: boolean
+          description: true si el penal fue gol.
+        home_penalties:
+          type: integer
+          description: Penales convertidos por el local hasta este penal.
+        away_penalties:
+          type: integer
+          description: Penales convertidos por el visitante hasta este penal.
+
     MatchFinishedData:
       type: object
       required:
@@ -706,6 +841,8 @@ components:
         - match_end
         - home_score
         - away_score
+        - home_penalties
+        - away_penalties
         - status
       properties:
         match_id:
@@ -724,6 +861,12 @@ components:
         away_score:
           type: integer
           description: Marcador final del equipo visitante.
+        home_penalties:
+          type: [integer, 'null']
+          description: Penales convertidos por el local. null si el partido no se definió por penales.
+        away_penalties:
+          type: [integer, 'null']
+          description: Penales convertidos por el visitante. null si el partido no se definió por penales.
         status:
           type: string
           enum:
@@ -747,7 +890,7 @@ components:
 
     Lineup:
       type: array
-      description: Lista de los 6 convocados del equipo (titulares y suplentes) con sus atributos PACSS.
+      description: Lista de los convocados del equipo (titulares y suplentes) con sus atributos PACSS. En una prueba de comportamiento hay un solo jugador.
       items:
         type: object
         required:
@@ -769,7 +912,7 @@ components:
             description: Nombre del jugador.
           is_starter:
             type: boolean
-            description: 'true si es Titular, false si no.'
+            description: true si está en cancha, false si está en el banco.
           power:
             type: integer
             description: Atributo Power.
@@ -801,6 +944,28 @@ components:
           behavior_name:
             type: string
             description: Nombre visible del comportamiento.
+
+    # --- notificationStream ---
+    NotificationData:
+      type: object
+      required: [id, message, league_id, read, created_at]
+      properties:
+        id:
+          type: string
+          description: ID de la notificación.
+        message:
+          type: string
+          description: Texto de la notificación.
+        league_id:
+          type: [string, 'null']
+          description: Liga a la que se refiere la notificación.
+        read:
+          type: boolean
+          description: Siempre false en una notificación nueva.
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha y hora en que se generó la notificación.
 
   securitySchemes:
     queryToken:
