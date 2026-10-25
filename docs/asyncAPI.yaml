@@ -91,6 +91,8 @@ channels:
         $ref: '#/components/messages/MatchResumed'
       substitutionMade:
         $ref: '#/components/messages/SubstitutionMade'
+      behaviorChanged:
+        $ref: '#/components/messages/BehaviorChanged'
       penaltyShootoutStart:
         $ref: '#/components/messages/PenaltyShootoutStart'
       penaltyResult:
@@ -429,6 +431,19 @@ components:
             const: substitutionMade
           data:
             $ref: '#/components/schemas/SubstitutionMadeData'
+
+    BehaviorChanged:
+      name: behaviorChanged
+      description: Notifica que se cambió el comportamiento de un jugador durante el partido. 
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type:
+            type: string
+            const: behaviorChanged
+          data:
+            $ref: '#/components/schemas/BehaviorChangedData'
 
     PenaltyShootoutStart:
       name: penaltyShootoutStart
@@ -800,6 +815,31 @@ components:
         player_out_id:
           type: string
           description: ID del jugador que sale.
+
+    BehaviorChangedData:
+      type: object
+      required:
+        - match_id
+        - tick
+        - player_id
+        - behavior_id
+        - behavior_name
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        tick:
+          type: integer
+          description: Tick del partido en el que se hizo el cambio. El nuevo comportamiento rige desde el tick siguiente.
+        player_id:
+          type: string
+          description: ID del jugador cuyo comportamiento cambió.
+        behavior_id:
+          type: string
+          description: ID del nuevo comportamiento.
+        behavior_name:
+          type: string
+          description: Nombre del nuevo comportamiento.
 
     PenaltyShootoutStartData:
       type: object
