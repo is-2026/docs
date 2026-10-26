@@ -802,8 +802,6 @@ components:
         - tick
         - player_in_id
         - player_out_id
-        - behavior_id
-        - behavior_name
       properties:
         match_id:
           type: string
