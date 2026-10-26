@@ -802,6 +802,8 @@ components:
         - tick
         - player_in_id
         - player_out_id
+        - behavior_id
+        - behavior_name
       properties:
         match_id:
           type: string
@@ -815,6 +817,12 @@ components:
         player_out_id:
           type: string
           description: ID del jugador que sale.
+        behavior_id:
+          type: string
+          description: ID del comportamiento del jugador ingresante.
+        behavior_name:
+          type: string
+          description: Nombre del comportamiento del jugador ingresante.
 
     BehaviorChangedData:
       type: object
