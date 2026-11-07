@@ -46,7 +46,7 @@ channels:
     description: |
       Eventos de inscripción de un rival e inicio del partido, mientras un amistoso espera oponente.
 
-      Lo escuchan los dos clubes: el creador apenas crea el amistoso, y el rival después de unirse (`POST /friendlies/{friendly_id}/join`). Si al conectarse el amistoso ya tiene rival, el servidor le envía `friendlyClubRegistered` a ese cliente, así el rival también recibe `starts_at` para la cuenta regresiva.
+      Lo escuchan los dos clubes: el creador apenas crea el amistoso, y el rival después de unirse (`POST /friendlies/{friendly_id}/join`). Si al conectarse el amistoso ya tiene rival, el servidor le envía `friendlyClubRegistered` solo a ese cliente, con el club contra el que juega: al creador, el club que se unió, y al que se unió, el creador.
 
       Si el amistoso no existe, el servidor cierra la conexión con el código `4404`.
     parameters:
@@ -206,7 +206,7 @@ components:
     # --- friendlyLobbyStream ---
     FriendlyClubRegistered:
       name: friendlyClubRegistered
-      description: Notifica a los clubes del amistoso que un club rival se inscribió y cuándo arranca el partido.
+      description: Notifica que el amistoso ya tiene rival, contra qué club juega quien recibe el mensaje y cuándo arranca el partido.
       payload:
         type: object
         required: [type, data]
@@ -228,7 +228,7 @@ components:
 
     FriendlyStart:
       name: friendlyStart
-      description: Notifica que el partido del amistoso está por comenzar, tras la ventana de espera de 30 segundos. El canal se cierra después de emitir este mensaje.
+      description: Notifica que el partido del amistoso está por comenzar, 3 segundos después de que se une el rival. El canal se cierra después de emitir este mensaje.
       payload:
         type: object
         required: [type, data]
@@ -578,14 +578,14 @@ components:
           description: ID del amistoso.
         club_id:
           type: string
-          description: ID del club que se inscribió.
+          description: ID del club rival de quien recibe el mensaje. Para el creador es el club que se unió y para el que se unió es el creador.
         club_name:
           type: string
-          description: Nombre del club que se inscribió.
+          description: Nombre del club rival de quien recibe el mensaje.
         starts_at:
           type: string
           format: date-time
-          description: Fecha y hora en que termina la ventana de espera de 30 segundos y se emite `friendlyStart`. Sirve para mostrar la cuenta regresiva.
+          description: Fecha y hora en que se emite `friendlyStart`, 3 segundos después de que se une el rival.
 
     FriendlyStartData:
       type: object
