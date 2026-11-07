@@ -2,7 +2,7 @@ asyncapi: 3.1.0
 
 info:
   title: FutBot - Especificación de los canales WebSocket de la API de FutBot
-  version: 2.0.0
+  version: 2.0.1
   description: |
     Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, penales, fin de partido), en el lobby de ligas y amistosos, y en las notificaciones del club. Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
 
@@ -64,11 +64,14 @@ channels:
       Eventos en tiempo real de un partido puntual: un amistoso, un partido de liga o una prueba de comportamiento (`POST /club/behaviors/test`).
 
       Secuencia de mensajes
-      1. Al conectarse: `matchStarted` (solo a ese cliente) y a continuación el último `matchState` disponible. Antes del primer tick puede haber unos segundos de espera hasta `match_start`; durante esa espera el último `matchState` es el del tick 0, con jugadores y pelota en sus posiciones iniciales.
+      1. Al conectarse: `matchStarted` (solo a ese cliente) y a continuación el último `matchState` disponible. Antes del primer tick puede haber unos segundos de espera hasta `match_start`; durante esa espera el último `matchState` es el del tick 0, con jugadores y pelota en sus posiciones iniciales. Si se conecta durante una pausa, después recibe el mensaje que la abrió (`coolingBreakStart` o `halftimeStart`); durante la ventana de penales, el `penaltyShootoutStart`; y durante un penal, el `penaltyKick` de ese penal.
       2. En cada tick: primero los `goal` de ese tick (si hubo) y después el `matchState`. Los dos llevan el mismo `tick`. Tras un gol, ese `matchState` ya muestra a los jugadores y la pelota en las posiciones iniciales.
       3. Pausas: después de los ticks `T/4`, `T/2` y `3T/4` (con `T` = `total_ticks`) llega `coolingBreakStart`, `halftimeStart` y `coolingBreakStart`. Durante la pausa no llegan `matchState`, y las sustituciones se ejecutan con `substitutionMade`. Al terminar llega `matchResumed`.
-      4. Penales (solo en una liga sin empates, si el partido terminó igualado): `penaltyShootoutStart` abre una ventana para elegir los pateadores. Después, en cada penal llegan los `matchState` con los dos jugadores del penal y al final un `penaltyResult`.
-      5. Al terminar: el último `matchState`, después `matchFinished`, y el servidor cierra la conexión con el código `1000`.
+      4. Penales (solo en un partido de una liga sin empates que terminó igualado):
+         - Después del último `matchState` del tiempo de juego llega `penaltyShootoutStart`, que abre una ventana de 30 s para elegir los pateadores con `PUT /matches/{match_id}/penalty-order`. Durante la ventana no llegan `matchState`.
+         - Al cerrarse la ventana empieza la tanda. Por cada penal llega `penaltyKick`, después los `matchState` del penal y al final `penaltyResult`. Los `matchState` de un penal tienen dos jugadores (el pateador y el defensor) y su `tick` cuenta los ticks de ese penal (hasta 80), empezando de nuevo en cada uno.
+         - Durante la tanda no se envían `goal`: el resultado de cada penal llega en `penaltyResult` y el marcador del partido (`home_score`, `away_score`) no cambia.
+      5. Al terminar: el último `matchState` (o el último `penaltyResult`, si hubo penales), después `matchFinished`, y el servidor cierra la conexión con el código `1000`.
 
       Una prueba de comportamiento tiene un jugador por equipo, dura 600 ticks y no tiene pausas ni penales.
 
@@ -95,6 +98,8 @@ channels:
         $ref: '#/components/messages/BehaviorChanged'
       penaltyShootoutStart:
         $ref: '#/components/messages/PenaltyShootoutStart'
+      penaltyKick:
+        $ref: '#/components/messages/PenaltyKick'
       penaltyResult:
         $ref: '#/components/messages/PenaltyResult'
       matchFinished:
@@ -447,7 +452,7 @@ components:
 
     PenaltyShootoutStart:
       name: penaltyShootoutStart
-      description: Notifica que el partido terminó igualado en una liga sin empates y se define por penales. Abre la ventana para elegir los pateadores con `PUT /matches/{match_id}/penalty-order`.
+      description: Notifica que el partido terminó igualado en una liga sin empates y se define por penales. Abre la ventana para elegir los pateadores con `PUT /matches/{match_id}/penalty-order` (un club con DT los elige con su comportamiento de DT). Si al cerrarse la ventana un club no eligió, patean los 3 que están en cancha, por número de camiseta y repetidos hasta completar 5.
       payload:
         type: object
         required: [type, data]
@@ -458,9 +463,22 @@ components:
           data:
             $ref: '#/components/schemas/PenaltyShootoutStartData'
 
+    PenaltyKick:
+      name: penaltyKick
+      description: Notifica que empieza un penal de la tanda, quién patea y quién defiende. Después llegan los `matchState` del penal y al final su `penaltyResult`. Patea primero el local y después se alternan; el defensor del penal es el jugador del club rival que está en la misma posición de su propio orden de pateadores.
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type:
+            type: string
+            const: penaltyKick
+          data:
+            $ref: '#/components/schemas/PenaltyKickData'
+
     PenaltyResult:
       name: penaltyResult
-      description: Notifica el resultado de un penal de la tanda y el resultado acumulado.
+      description: Notifica el resultado de un penal de la tanda y el resultado acumulado. Un penal termina cuando es gol o a los 80 ticks.
       payload:
         type: object
         required: [type, data]
@@ -495,6 +513,20 @@ components:
               away_score: 1
               home_penalties: null
               away_penalties: null
+              winner_club_id: a1f4c8e2-6d3b-4e7a-9c5f-3b8d1e6a4f01
+              status: finished
+        - name: finPorPenales
+          payload:
+            type: matchFinished
+            data:
+              match_id: 5e1d3c7a-2b9f-4a6e-8c4d-1f7a9b3e6d22
+              tick: 3000
+              match_end: '2026-10-04T18:38:41Z'
+              home_score: 1
+              away_score: 1
+              home_penalties: 4
+              away_penalties: 3
+              winner_club_id: a1f4c8e2-6d3b-4e7a-9c5f-3b8d1e6a4f01
               status: finished
 
     # --- notificationStream ---
@@ -641,13 +673,20 @@ components:
         away_score:
           type: integer
           description: Marcador del equipo visitante.
+        home_penalties:
+          type: integer
+          description: Penales convertidos por el local hasta ahora. Solo viene si `status` es `penalties` (vale 0 durante la ventana para elegir los pateadores).
+        away_penalties:
+          type: integer
+          description: Penales convertidos por el visitante hasta ahora. Solo viene si `status` es `penalties` (vale 0 durante la ventana para elegir los pateadores).
         status:
           type: string
           enum:
             - in_progress
             - paused
+            - penalties
             - finished
-          description: Estado actual del partido.
+          description: Estado actual del partido. `penalties` dura toda la definición por penales, desde que se abre la ventana para elegir los pateadores hasta el último penal.
 
     MatchStateData:
       type: object
@@ -859,13 +898,40 @@ components:
           format: date-time
           description: Fecha y hora en que se cierra la ventana para elegir los pateadores.
 
-    PenaltyResultData:
+    PenaltyKickData:
       type: object
-      required: [match_id, team_id, scored, home_penalties, away_penalties]
+      required: [match_id, number, team_id, kicker_id, defender_id]
       properties:
         match_id:
           type: string
           description: ID del partido.
+        number:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Número del penal en la tanda, contando los de los dos clubes (los impares los patea el local y los pares el visitante). Son 5 por lado, con muerte súbita después y un máximo de 20.
+        team_id:
+          type: string
+          description: ID del club que patea.
+        kicker_id:
+          type: string
+          description: ID del jugador que patea.
+        defender_id:
+          type: string
+          description: ID del jugador del club rival que defiende el arco.
+
+    PenaltyResultData:
+      type: object
+      required: [match_id, number, team_id, scored, home_penalties, away_penalties]
+      properties:
+        match_id:
+          type: string
+          description: ID del partido.
+        number:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Número del penal, el mismo que en su `penaltyKick`.
         team_id:
           type: string
           description: ID del club que pateó.
@@ -889,6 +955,7 @@ components:
         - away_score
         - home_penalties
         - away_penalties
+        - winner_club_id
         - status
       properties:
         match_id:
@@ -913,6 +980,9 @@ components:
         away_penalties:
           type: [integer, 'null']
           description: Penales convertidos por el visitante. null si el partido no se definió por penales.
+        winner_club_id:
+          type: [string, 'null']
+          description: ID del club ganador, por goles o por penales. Si la tanda terminó empatada después de 20 penales, es el club que ganó el sorteo. null si el partido terminó empatado o si es una prueba de comportamiento.
         status:
           type: string
           enum:
