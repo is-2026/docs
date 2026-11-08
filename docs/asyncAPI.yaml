@@ -2,7 +2,7 @@ asyncapi: 3.1.0
 
 info:
   title: FutBot - Especificación de los canales WebSocket de la API de FutBot
-  version: 2.0.1
+  version: 2.0.2
   description: |
     Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, penales, fin de partido), en el lobby de ligas y amistosos, y en las notificaciones del club. Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
 
@@ -40,6 +40,8 @@ channels:
         $ref: '#/components/messages/LeagueCancelled'
       leagueUpdated:
         $ref: '#/components/messages/LeagueUpdated'
+      leagueFinished:
+        $ref: '#/components/messages/LeagueFinished'
 
   friendlyLobbyStream:
     address: '/ws/friendlies/{friendly_id}/lobby'
@@ -197,7 +199,7 @@ components:
 
     LeagueUpdated:
       name: leagueUpdated
-      description: Notifica que cambió algo de una liga en curso (arrancó o terminó un partido, o terminó la liga). El frontend vuelve a pedir el detalle, el fixture y la tabla.
+      description: Notifica que cambió algo de una liga en curso (se programó una fecha, o arrancó o terminó un partido). El frontend vuelve a pedir el detalle, el fixture y la tabla.
       payload:
         type: object
         required: [type, data]
@@ -207,6 +209,19 @@ components:
             const: leagueUpdated
           data:
             $ref: '#/components/schemas/LeagueUpdatedData'
+
+    LeagueFinished:
+      name: leagueFinished
+      description: Notifica que la liga ha terminado. El servidor cierra la conexión con el código `1000` después de emitir este mensaje.
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type:
+            type: string
+            const: leagueFinished
+          data:
+            $ref: '#/components/schemas/LeagueFinishedData'
 
     # --- friendlyLobbyStream ---
     FriendlyClubRegistered:
@@ -564,7 +579,7 @@ components:
 
     ClubLeftData:
       type: object
-      required: [league_id, club_id, registered_count]
+      required: [league_id, club_id, club_name, registered_count]
       properties:
         league_id:
           type: string
@@ -572,6 +587,9 @@ components:
         club_id:
           type: string
           description: ID del club que abandonó.
+        club_name:
+          type: string
+          description: Nombre del club que abandonó.
         registered_count:
           type: integer
           description: Cantidad total de clubes inscriptos en la liga tras este abandono.
@@ -599,6 +617,14 @@ components:
         league_id:
           type: string
           description: ID de la liga.
+
+    LeagueFinishedData:
+      type: object
+      required: [league_id]
+      properties:
+        league_id:
+          type: string
+          description: ID de la liga que terminó.
 
     # --- friendlyLobbyStream ---
     FriendlyClubRegisteredData:
