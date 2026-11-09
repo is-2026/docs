@@ -71,7 +71,7 @@ channels:
       3. Pausas: después de los ticks `T/4`, `T/2` y `3T/4` (con `T` = `total_ticks`) llega `coolingBreakStart`, `halftimeStart` y `coolingBreakStart`. Durante la pausa no llegan `matchState`, y las sustituciones se ejecutan con `substitutionMade`. Al terminar llega `matchResumed`.
       4. Penales (solo en un partido de una liga sin empates que terminó igualado):
          - Después del último `matchState` del tiempo de juego llega `penaltyShootoutStart`, que abre una ventana de 30 s para elegir los pateadores con `PUT /matches/{match_id}/penalty-order`. Durante la ventana no llegan `matchState`.
-         - Al cerrarse la ventana empieza la tanda. Por cada penal llega `penaltyKick`, después los `matchState` del penal y al final `penaltyResult`. Los `matchState` de un penal tienen dos jugadores (el pateador y el defensor) y su `tick` cuenta los ticks de ese penal (hasta 80), empezando de nuevo en cada uno.
+         - Al cerrarse la ventana empieza la tanda. Por cada penal llega `penaltyKick`, después los `matchState` del penal y al final `penaltyResult`. Los `matchState` de un penal tienen dos jugadores (el pateador y el defensor) y su `tick` cuenta los ticks de ese penal (hasta 80), empezando de nuevo en cada uno. Todos los penales se muestran pateados hacia el arco derecho (x positivo): los `matchState` de los penales del visitante llegan espejados, con `(x, y)` como `(-x, -y)`.
          - Durante la tanda no se envían `goal`: el resultado de cada penal llega en `penaltyResult` y el marcador del partido (`home_score`, `away_score`) no cambia.
       5. Al terminar: el último `matchState` (o el último `penaltyResult`, si hubo penales), después `matchFinished`, y el servidor cierra la conexión con el código `1000`.
 
@@ -493,7 +493,7 @@ components:
 
     PenaltyResult:
       name: penaltyResult
-      description: Notifica el resultado de un penal de la tanda y el resultado acumulado. Un penal termina cuando es gol o a los 80 ticks.
+      description: Notifica el resultado de un penal de la tanda y el resultado acumulado. Un penal termina cuando es gol, cuando el defensor toca la pelota, cuando la pelota vuelve a la mitad del pateador o a los `penalty_ticks` ticks (80).
       payload:
         type: object
         required: [type, data]
@@ -926,7 +926,7 @@ components:
 
     PenaltyKickData:
       type: object
-      required: [match_id, number, team_id, kicker_id, defender_id]
+      required: [match_id, number, team_id, kicker_id, defender_id, penalty_ticks]
       properties:
         match_id:
           type: string
@@ -945,6 +945,9 @@ components:
         defender_id:
           type: string
           description: ID del jugador del club rival que defiende el arco.
+        penalty_ticks:
+          type: integer
+          description: Duración máxima del penal en ticks (80). Termina antes si es gol, si el defensor toca la pelota o si la pelota vuelve a la mitad del pateador.
 
     PenaltyResultData:
       type: object
