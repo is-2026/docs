@@ -917,8 +917,7 @@ paths:
         - name: status
           in: query
           schema:
-            type: string
-            enum: [scheduled, in_progress, finished]
+            $ref: '#/components/schemas/MatchStatus'
       operationId: list_league_matches
       responses:
         '200':
