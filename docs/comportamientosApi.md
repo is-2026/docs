@@ -28,7 +28,7 @@ def decide_action():
 El motor resuelve las interacciones basándose en los atributos del jugador en cada tick:
 * **Power:** Determina con cuánta fuerza sale la pelota en un pase o tiro.
 * **Agility:** Define el tiempo de recuperación (cooldown) tras patear. No podrá volver a patear la pelota hasta que pase este tiempo.
-* **Control:** Determina el radio de alcance del jugador. Si la pelota está dentro de este radio, podrá intentar interactuar con ella.
+* **Control:** Determina el radio de alcance del jugador. Si la pelota está dentro de este radio, podrá intentar interactuar con ella. También define la precisión de los remates: cada remate se desvía al azar hasta 20° para cada lado con Control 20 y hasta 5° con Control 100.
 * **Speed:** Define qué tan rápido corre el jugador al moverse. El movimiento no tiene inercia: si en un tick no se invoca `move()`, el jugador se queda quieto.
 * **Strength:** Si en un mismo tick dos o más jugadores (rivales o compañeros) tienen la pelota en su radio e intentan patear o pasar la pelota simultáneamente, el motor compara el atributo Strength de todos ellos: gana el impacto el de mayor Strength y se anulan las acciones del resto. Si hay empate, el ganador se elige al azar.
 
@@ -64,10 +64,14 @@ Estas funciones requieren parámetros de entrada y dictan la acción del jugador
 | :--- | :--- | :--- | :--- |
 | `move(dx, dy, porcentaje_velocidad)` | `dx`: Dirección horizontal (vector).<br>`dy`: Dirección vertical (vector).<br>`porcentaje_velocidad`: Porcentaje de velocidad a utilizar (0-100). | Aplica movimiento al jugador en la dirección especificada durante este tick. La distancia recorrida depende del porcentaje y de la velocidad base. Si la dirección es `(0, 0)`, no tiene efecto. Un porcentaje fuera del rango se ajusta a 0-100. | **Speed** |
 | `pass_to(jugador_id)` | `jugador_id`: ID del compañero. | Intenta golpear la pelota en dirección al compañero seleccionado en este tick. Si el ID no corresponde a un compañero en cancha (por ejemplo, un rival o el propio jugador), no tiene efecto. | **Agility**, **Power**, **Strength** |
-| `shoot(dx, dy, porcentaje_power)` | `dx`: Dirección horizontal del remate.<br>`dy`: Dirección vertical del remate.<br>`porcentaje_power`: Fuerza del golpe (0-100). | Intenta ejecutar un remate en la dirección vectorial especificada durante este tick. | **Agility**, **Power**, **Strength** |
-| `shoot_arco()` | Ninguno | Intenta ejecutar un remate apuntando automáticamente en la dirección del arco rival. | **Agility**, **Power**, **Strength** |
+| `shoot(dx, dy, porcentaje_power)` | `dx`: Dirección horizontal del remate.<br>`dy`: Dirección vertical del remate.<br>`porcentaje_power`: Fuerza del golpe (0-100). | Intenta ejecutar un remate en la dirección vectorial especificada durante este tick. | **Agility**, **Power**, **Strength**, **Control** |
+| `shoot_arco()` | Ninguno | Intenta ejecutar un remate apuntando automáticamente en la dirección del arco rival. | **Agility**, **Power**, **Strength**, **Control** |
 
 ---
+
+### **Tanda de penales**
+
+En la tanda, cada pateador usa su comportamiento: el que eligió el club para la tanda o, si no eligió, el que tenía en el partido. El comportamiento no sabe que es un penal: ve un partido con un solo compañero (él mismo) y un rival, y dura como máximo 80 ticks. Cuando a ese jugador le toca atajar, su comportamiento no se usa: al arquero lo maneja el sistema.
 
 # <center> **Contrato del DT** </center>
 
