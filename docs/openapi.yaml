@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FutBot API
-  version: 2.0.1
+  version: 2.0.2
   description: API REST para la plataforma FutBot:\ Gestion de usuarios, jugadores, partidos, ligas, comportamientos en Python y datos del ranking
 servers:
   - url: https://localhost:8000
@@ -660,7 +660,7 @@ paths:
     post:
       tags: [Behaviors]
       summary: Probar un comportamiento en una cancha 1 vs 1
-      description: Valida el código y arranca un partido de prueba de 600 ticks, sin pausas, entre un jugador genérico con ese código y otro con el default Marcador. Se mira por /ws/matches/{match_id}. No se guarda ningún partido, amistoso ni comportamiento. Una segunda prueba del mismo club corta la primera.
+      description: Valida el código y arranca un partido de prueba de 600 ticks, sin pausas, entre un jugador genérico con ese código y otro con el default Defensor. Se mira por /ws/matches/{match_id}. No se guarda ningún partido, amistoso ni comportamiento. Una segunda prueba del mismo club corta la primera.
       operationId: test_behavior
       requestBody:
         required: true
@@ -1778,12 +1778,11 @@ components:
 
     BehaviorTestInput:
       type: object
-      required: [id]
+      required: [code]
       properties:
-        id:
+        code:
           type: string
-          format: uuid
-          description: Comportamiento de jugador a probar. No se guarda.
+          description: Código en Python del comportamiento de jugador a probar. Se valida igual que al guardarlo. No se guarda.
 
     BehaviorTestResponse:
       type: object
