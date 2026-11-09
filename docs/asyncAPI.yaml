@@ -2,7 +2,7 @@ asyncapi: 3.1.0
 
 info:
   title: FutBot - Especificación de los canales WebSocket de la API de FutBot
-  version: 2.0.2
+  version: 2.0.4
   description: |
     Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, penales, fin de partido), en el lobby de ligas y amistosos, y en las notificaciones del club. Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
 
@@ -75,9 +75,9 @@ channels:
          - Durante la tanda no se envían `goal`: el resultado de cada penal llega en `penaltyResult` y el marcador del partido (`home_score`, `away_score`) no cambia.
       5. Al terminar: el último `matchState` (o el último `penaltyResult`, si hubo penales), después `matchFinished`, y el servidor cierra la conexión con el código `1000`.
 
-      Una prueba de comportamiento tiene un jugador por equipo, dura 600 ticks y no tiene pausas ni penales.
+       Una prueba de comportamiento tiene un jugador por equipo, dura 600 ticks y no tiene pausas ni penales. El local es el jugador con el código a probar y el visitante, el default Defensor. Los clubes de `matchStarted` son genéricos: su `id` no es el de ningún club real y `avatar_url` llega vacío. Los jugadores no tienen `behavior_id`, porque el código probado no se guarda.
 
-      **Cierre de la conexión.** Si el partido no existe o ya terminó, el servidor cierra la conexión con el código `4404`. Cuando el partido termina, la cierra con el código `1000`.
+      **Cierre de la conexión.** Si el partido no existe o ya terminó, el servidor cierra la conexión con el código `4404`. Cuando el partido termina, la cierra con el código `1000`.  Si el mismo club arranca otra prueba de comportamiento, la anterior se corta: el servidor cierra su conexión con el código `1000` sin enviar `matchFinished`.
     parameters:
       match_id:
         description: ID único del partido en curso.
