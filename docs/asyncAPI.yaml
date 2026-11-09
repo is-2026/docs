@@ -2,7 +2,7 @@ asyncapi: 3.1.0
 
 info:
   title: FutBot - Especificación de los canales WebSocket de la API de FutBot
-  version: 2.0.2
+  version: 2.0.3
   description: |
     Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, penales, fin de partido), en el lobby de ligas y amistosos, y en las notificaciones del club. Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
 
@@ -493,7 +493,7 @@ components:
 
     PenaltyResult:
       name: penaltyResult
-      description: Notifica el resultado de un penal de la tanda y el resultado acumulado. Un penal termina cuando es gol o a los 80 ticks.
+      description: Notifica el resultado de un penal de la tanda y el resultado acumulado. Un penal termina cuando es gol, cuando el defensor toca la pelota, cuando la pelota vuelve a la mitad del pateador o a los `penalty_ticks` ticks (80).
       payload:
         type: object
         required: [type, data]
@@ -926,7 +926,7 @@ components:
 
     PenaltyKickData:
       type: object
-      required: [match_id, number, team_id, kicker_id, defender_id]
+      required: [match_id, number, team_id, kicker_id, defender_id, penalty_ticks]
       properties:
         match_id:
           type: string
@@ -945,6 +945,9 @@ components:
         defender_id:
           type: string
           description: ID del jugador del club rival que defiende el arco.
+        penalty_ticks:
+          type: integer
+          description: Duración máxima del penal en ticks (80). Termina antes si es gol, si el defensor toca la pelota o si la pelota vuelve a la mitad del pateador.
 
     PenaltyResultData:
       type: object
