@@ -2021,7 +2021,7 @@ components:
           type: [string, "null"]
           format: uuid
           description: null si es un amistoso.
-        round:
+        round_number:
           type: [integer, "null"]
           description: Fecha de la liga. null si es un amistoso.
         home_club_id:
@@ -2036,10 +2036,6 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/MatchStatus'
-        starts_at:
-          type: [string, "null"]
-          format: date-time
-          description: Hora de inicio programada. null mientras la fecha todavía no tiene hora.
         home_score:
           type: [integer, "null"]
         away_score:
