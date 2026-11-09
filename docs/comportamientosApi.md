@@ -66,3 +66,86 @@ Estas funciones requieren parámetros de entrada y dictan la acción del jugador
 | `pass_to(jugador_id)` | `jugador_id`: ID del compañero. | Intenta golpear la pelota en dirección al compañero seleccionado en este tick. Si el ID no corresponde a un compañero en cancha (por ejemplo, un rival o el propio jugador), no tiene efecto. | **Agility**, **Power**, **Strength** |
 | `shoot(dx, dy, porcentaje_power)` | `dx`: Dirección horizontal del remate.<br>`dy`: Dirección vertical del remate.<br>`porcentaje_power`: Fuerza del golpe (0-100). | Intenta ejecutar un remate en la dirección vectorial especificada durante este tick. | **Agility**, **Power**, **Strength** |
 | `shoot_arco()` | Ninguno | Intenta ejecutar un remate apuntando automáticamente en la dirección del arco rival. | **Agility**, **Power**, **Strength** |
+
+---
+
+# <center> **Contrato del DT** </center>
+
+Un comportamiento de tipo DT (`kind = "coach"`) no controla a un jugador: dirige al equipo durante el partido. Cambia comportamientos de los jugadores en cancha, programa sustituciones y elige a los pateadores de la tanda de penales.
+
+Mientras el club tiene un DT activo, el usuario no puede hacer cambios manuales en ese partido: los endpoints de cambio de comportamiento en vivo, sustituciones y orden de penales responden `409` para ese club. El DT que dirige un partido es el que el club tenía activo cuando el partido empezó. Activarlo, cambiarlo o quitarlo rige desde el próximo partido y no cambia el que se está jugando.
+
+### **Estructura Obligatoria del Código (Plantilla)**
+
+Todo código de un DT debe incluir una función principal llamada `decide_coach()`, que no recibe parámetros.
+
+* El sistema la invoca **una vez por tick mientras se juega**. No se invoca durante las pausas (hidratación y entretiempo).
+* Si el partido se define por penales, se invoca **una sola vez más al abrir la ventana de penales**, para que el DT elija a los pateadores. En esa llamada `is_penalty_shootout()` devuelve `True`.
+* El código se carga una sola vez al empezar el partido, así que **las variables globales se mantienen entre ticks**. Sirven para que el DT recuerde lo que ya hizo.
+* Tiene las mismas restricciones que un comportamiento de jugador: los mismos builtins permitidos, solo puede importar `math` y tiene el mismo límite de tiempo por llamada.
+* Si `decide_coach()` lanza una excepción o se pasa del tiempo, **ese tick no se aplica ninguna orden** y el partido sigue normalmente. En el tick siguiente se vuelve a invocar.
+
+**Ejemplo de plantilla:**
+```python
+defendiendo = False
+
+
+def buscar_comportamiento(nombre):
+    for behavior_id, behavior_name in behaviors():
+        if behavior_name == nombre:
+            return behavior_id
+    return None
+
+
+def decide_coach():
+    global defendiendo
+
+    # 1. Tanda de penales: elegir a los 5 pateadores
+    if is_penalty_shootout():
+        pateador = buscar_comportamiento("Delantero")
+        if pateador is not None:
+            convocados = [player_id for player_id, _ in on_field()] + bench()
+            penalty_order([(player_id, pateador) for player_id in convocados[:5]])
+        return
+
+    # 2. Durante el juego: si va ganando en el segundo tiempo, pasar a defender
+    propios, rival = score()
+    if not defendiendo and time() >= total_time() // 2 and propios > rival:
+        defensor = buscar_comportamiento("Defensor")
+        if defensor is not None:
+            for player_id, _ in on_field():
+                set_behavior(player_id, defensor)
+            defendiendo = True
+```
+
+### **Primitivas de estado (Lectura del Partido)**
+
+Estas funciones no reciben parámetros y devuelven el estado del partido en el tick actual. Todos los IDs son strings. El DT **no ve posiciones**: no tiene acceso a la ubicación de la pelota ni de los jugadores.
+
+| Primitiva | Parámetros | Retorno | Descripción |
+| :--- | :--- | :--- | :--- |
+| `score()` | Ninguno | `(int, int)` | Devuelve el marcador actual del partido con el formato goles (propios, rival). |
+| `time()` | Ninguno | `int` | Retorna el tiempo actual del partido **medido en ticks**. |
+| `total_time()` | Ninguno | `int` | Retorna la duración total del partido **medida en ticks**. |
+| `on_field()` | Ninguno | `Lista de tuplas` | Retorna los jugadores propios que están en cancha con el comportamiento que tiene cada uno, ej: `[(player_id, behavior_id), ...]`. |
+| `bench()` | Ninguno | `Lista de IDs` | Retorna los IDs de los jugadores propios que están en el banco de suplentes, ej: `[player_id, ...]`. |
+| `behaviors()` | Ninguno | `Lista de tuplas` | Retorna los comportamientos de tipo jugador del club, que son los únicos que el DT puede asignar, ej: `[(behavior_id, nombre), ...]`. |
+| `is_penalty_shootout()` | Ninguno | `Booleano` | Retorna `True` solo en la llamada que se hace al abrir la ventana de penales. Durante el juego retorna `False`. |
+
+Los jugadores de `on_field()` más los de `bench()` son los 6 convocados del club para el partido.
+
+### **Primitivas de Acciones**
+
+Estas funciones dan órdenes al equipo. El DT no recibe ningún error: **una orden inválida se ignora** y no tiene efecto (igual que `pass_to` con un ID que no es de un compañero).
+
+| Primitiva | Parámetros | Descripción |
+| :--- | :--- | :--- |
+| `set_behavior(player_id, behavior_id)` | `player_id`: ID de un jugador propio en cancha.<br>`behavior_id`: ID de un comportamiento de `behaviors()`. | Cambia el comportamiento del jugador. **Rige desde el tick siguiente**: si se llama en el tick 10, el jugador actúa con el nuevo comportamiento desde el tick 11. Si el jugador ya tiene ese comportamiento, no tiene efecto. Si en un mismo tick se llama más de una vez para el mismo jugador, vale la primera. |
+| `substitute(player_out_id, player_in_id, behavior_id)` | `player_out_id`: ID de un jugador propio en cancha.<br>`player_in_id`: ID de un jugador propio en el banco.<br>`behavior_id`: ID de un comportamiento de `behaviors()`. | Programa una sustitución: el que entra ocupa la posición del que sale con el comportamiento elegido. **Se ejecuta en la próxima pausa.** El club puede tener una sola sustitución pendiente a la vez y el DT no puede cancelarla. Después de la tercera pausa ya no quedan ventanas de cambio y no tiene efecto. |
+| `penalty_order(kickers)` | `kickers`: lista de 5 tuplas `(player_id, behavior_id)`, en el orden en que patean. | Elige a los pateadores de la tanda de penales entre los 6 convocados, sin repetir, cada uno con un comportamiento de `behaviors()`. **Solo tiene efecto en la llamada de penales**; durante el juego se ignora. Si se llama más de una vez, vale la primera. |
+
+### **Casos límite**
+
+* **Órdenes inválidas:** un jugador que no está en cancha o en el banco, un comportamiento que no está en `behaviors()`, una sustitución cuando ya hay una pendiente o cuando no quedan ventanas, o un orden de penales con una cantidad distinta de 5, repetidos o jugadores que no son convocados. Todas se ignoran sin error.
+* **Llamada de penales:** `set_behavior` y `substitute` se ignoran. Si el DT no llama a `penalty_order`, el orden es inválido, lanza una excepción o se pasa del tiempo, patean los de por defecto: los 3 que están en cancha por número de camiseta, repetidos hasta completar 5, con el comportamiento que tenían.
+* **Excepción o tiempo excedido durante el juego:** ese tick no se aplica ninguna orden y el partido sigue.
