@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FutBot API
-  version: 2.0.2
+  version: 2.0.3
   description: API REST para la plataforma FutBot:\ Gestion de usuarios, jugadores, partidos, ligas, comportamientos en Python y datos del ranking
 servers:
   - url: https://localhost:8000
@@ -1347,7 +1347,7 @@ paths:
     put:
       tags: [Match]
       summary: Elegir los pateadores de la tanda de penales
-      description: Solo durante la ventana de 30 s que se abre cuando un partido de una liga sin empates termina igualado. Se eligen 5 pateadores, en orden, entre los 6 convocados, cada uno con su comportamiento. Si al cerrar la ventana el club no eligió, patean los 3 que están en cancha por número de camiseta repetidos con el comportamiento que tenían.
+      description: Solo durante la ventana de 30 s que se abre cuando un partido de una liga sin empates termina igualado. Se eligen 5 pateadores, en orden, entre los 6 convocados, cada uno con el comportamiento con el que va a patear (cuando le toca atajar no se usa, porque al arquero lo maneja el sistema). Si al cerrar la ventana el club no eligió, patean los 3 que están en cancha por número de camiseta repetidos con el comportamiento que tenían.
       operationId: set_penalty_order
       requestBody:
         required: true
@@ -2113,6 +2113,7 @@ components:
               behavior_id:
                 type: string
                 format: uuid
+                description: Comportamiento con el que patea. Cuando le toca atajar no se usa, porque al arquero lo maneja el sistema.
 
     # --- Ranking ---
     RankingItem:

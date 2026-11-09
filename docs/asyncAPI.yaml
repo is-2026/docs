@@ -2,7 +2,7 @@ asyncapi: 3.1.0
 
 info:
   title: FutBot - Especificación de los canales WebSocket de la API de FutBot
-  version: 2.0.4
+  version: 2.0.5
   description: |
     Se definen los eventos que el servidor empuja al cliente en tiempo real durante un partido (estado de jugadores y la pelota, goles, pausas, sustituciones, penales, fin de partido), en el lobby de ligas y amistosos, y en las notificaciones del club. Todos los mensajes se envían envueltos en un sobre con dos campos, `type` (el nombre del evento) y `data` (la información del evento).
 
@@ -71,7 +71,7 @@ channels:
       3. Pausas: después de los ticks `T/4`, `T/2` y `3T/4` (con `T` = `total_ticks`) llega `coolingBreakStart`, `halftimeStart` y `coolingBreakStart`. Durante la pausa no llegan `matchState`, y las sustituciones se ejecutan con `substitutionMade`. Al terminar llega `matchResumed`.
       4. Penales (solo en un partido de una liga sin empates que terminó igualado):
          - Después del último `matchState` del tiempo de juego llega `penaltyShootoutStart`, que abre una ventana de 30 s para elegir los pateadores con `PUT /matches/{match_id}/penalty-order`. Durante la ventana no llegan `matchState`.
-         - Al cerrarse la ventana empieza la tanda. Por cada penal llega `penaltyKick`, después los `matchState` del penal y al final `penaltyResult`. Los `matchState` de un penal tienen dos jugadores (el pateador y el defensor) y su `tick` cuenta los ticks de ese penal (hasta 80), empezando de nuevo en cada uno. Todos los penales se muestran pateados hacia el arco derecho (x positivo): los `matchState` de los penales del visitante llegan espejados, con `(x, y)` como `(-x, -y)`. Antes de cada remate hay una pausa de 2 s: después del `penaltyKick` llega un `matchState` con `tick` 0 (el pateador y el arquero en sus lugares) y la pelota recién se mueve al terminar esa pausa.
+         - Al cerrarse la ventana empieza la tanda. Por cada penal llega `penaltyKick`, después los `matchState` del penal y al final `penaltyResult`. Los `matchState` de un penal tienen dos jugadores (el pateador y el defensor) y su `tick` cuenta los ticks de ese penal (hasta 80), empezando de nuevo en cada uno. Todos los penales se muestran pateados hacia el arco derecho (x positivo): los `matchState` de los penales del visitante llegan espejados, con `(x, y)` como `(-x, -y)`. Antes de cada remate hay una pausa de 2 s: después del `penaltyKick` llega un `matchState` con `tick` 0 (el pateador y el arquero en sus lugares) y la pelota recién se mueve al terminar esa pausa. Al defensor lo maneja el sistema, no su comportamiento: espera 2 m adelante de su arco, cuando rematan se tira a un palo y, si la pelota se le acerca, corrige hacia ella.
          - Durante la tanda no se envían `goal`: el resultado de cada penal llega en `penaltyResult` y el marcador del partido (`home_score`, `away_score`) no cambia.
       5. Al terminar: el último `matchState` (o el último `penaltyResult`, si hubo penales), después `matchFinished`, y el servidor cierra la conexión con el código `1000`.
 
@@ -944,7 +944,7 @@ components:
           description: ID del jugador que patea.
         defender_id:
           type: string
-          description: ID del jugador del club rival que defiende el arco.
+          description: ID del jugador del club rival que defiende el arco. Lo mueve el sistema, no su comportamiento.
         penalty_ticks:
           type: integer
           description: Duración máxima del penal en ticks (80). Termina antes si es gol, si el defensor toca la pelota o si la pelota vuelve a la mitad del pateador.
