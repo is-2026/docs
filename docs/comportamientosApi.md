@@ -28,7 +28,7 @@ def decide_action():
 El motor resuelve las interacciones basándose en los atributos del jugador en cada tick:
 * **Power:** Determina con cuánta fuerza sale la pelota en un pase o tiro.
 * **Agility:** Define el tiempo de recuperación (cooldown) tras patear. No podrá volver a patear la pelota hasta que pase este tiempo.
-* **Control:** Determina el radio de alcance del jugador. Si la pelota está dentro de este radio, podrá intentar interactuar con ella. También define la precisión de los remates: cada remate se desvía al azar hasta 20° para cada lado con Control 20 y hasta 5° con Control 100.
+* **Control:** Determina el radio de alcance del jugador. Si la pelota está dentro de este radio, podrá intentar interactuar con ella. También define la precisión de los remates: cada remate se desvía al azar hasta 30° para cada lado con Control 20 y hasta 5° con Control 100.
 * **Speed:** Define qué tan rápido corre el jugador al moverse. El movimiento no tiene inercia: si en un tick no se invoca `move()`, el jugador se queda quieto.
 * **Strength:** Si en un mismo tick dos o más jugadores (rivales o compañeros) tienen la pelota en su radio e intentan patear o pasar la pelota simultáneamente, el motor compara el atributo Strength de todos ellos: gana el impacto el de mayor Strength y se anulan las acciones del resto. Si hay empate, el ganador se elige al azar.
 
